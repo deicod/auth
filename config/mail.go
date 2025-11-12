@@ -1,9 +1,21 @@
 package config
 
-var (
-        MailHost      = "mailserverx.de"
-        MailPort      = 465
-        MailUser      = "dev@icod.de"
-        MailPass      = ""
-        MailFrom      = MailUser
-)
+type Mail struct {
+	Host   string
+	Port   int
+	User   string
+	Pass   string
+	From   string
+	UseSSL bool
+}
+
+func DefaultMail() Mail {
+	return Mail{
+		Host:   "mailserverx.de",
+		Port:   465,
+		User:   "dev@icod.de",
+		Pass:   "",
+		From:   "dev@icod.de",
+		UseSSL: true,
+	}
+}
