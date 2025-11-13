@@ -19,6 +19,7 @@ type Service interface {
 	ResetPassword(ctx context.Context, cmd core.ResetPasswordCommand) (core.UserPublic, error)
 	InitiateEmailChange(ctx context.Context, cmd core.ChangeEmailCommand) error
 	ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand) (core.ChangeEmailResult, error)
+	AuthenticateSession(ctx context.Context, token string) (core.UserPublic, core.SessionPublic, error)
 }
 
 type Backend string

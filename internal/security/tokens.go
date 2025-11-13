@@ -1,4 +1,4 @@
-package pgx
+package security
 
 import (
 	"crypto/rand"
@@ -7,28 +7,28 @@ import (
 	"encoding/hex"
 )
 
-type tokenGenerator struct {
+type TokenGenerator struct {
 	size int
 }
 
-func newTokenGenerator(size int) tokenGenerator {
+func NewTokenGenerator(size int) *TokenGenerator {
 	if size <= 0 {
 		size = 32
 	}
-	return tokenGenerator{size: size}
+	return &TokenGenerator{size: size}
 }
 
-func (g tokenGenerator) Generate() (token string, hash string, err error) {
+func (g *TokenGenerator) Generate() (token string, hash string, err error) {
 	buf := make([]byte, g.size)
 	if _, err = rand.Read(buf); err != nil {
 		return "", "", err
 	}
 	token = base64.RawURLEncoding.EncodeToString(buf)
-	hash = hashToken(token)
+	hash = HashToken(token)
 	return token, hash, nil
 }
 
-func hashToken(token string) string {
+func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

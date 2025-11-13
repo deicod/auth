@@ -185,251 +185,26 @@ Use the helpers in `core/errors.go` to distinguish conflicts, bad requests, unau
 
 ## Middleware Usage
 
-`Register` and `Login` both return an opaque session token. Store it client-side and send it as `Authorization: Bearer <token>` on requests that hit your own APIs. The package does not ship with a fixed HTTP middleware so you can adapt it to whatever router you prefer, but the pattern below works with the standard library and any backend that can look up sessions.
+`Register` and `Login` both return an opaque session token. Store it client-side and send it as `Authorization: Bearer <token>` on requests that hit your own APIs. The service exposes `AuthenticateSession`, and the `middleware` package wraps it for you:
 
 ```go
-package middleware
-
 import (
-    "context"
     "net/http"
-    "strings"
 
-    "github.com/deicod/auth/core"
+    "github.com/deicod/auth/middleware"
 )
 
-type SessionVerifier interface {
-    UserFromToken(ctx context.Context, token string) (core.UserPublic, error)
-}
-
-type ctxKey string
-
-const userContextKey ctxKey = "auth.user"
-
-func RequireAuth(verifier SessionVerifier) func(http.Handler) http.Handler {
-    return func(next http.Handler) http.Handler {
-        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-            parts := strings.Fields(r.Header.Get("Authorization"))
-            if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-                http.Error(w, "missing bearer token", http.StatusUnauthorized)
-                return
-            }
-
-            user, err := verifier.UserFromToken(r.Context(), parts[1])
-            if err != nil {
-                http.Error(w, "invalid or expired session", http.StatusUnauthorized)
-                return
-            }
-
-            ctx := context.WithValue(r.Context(), userContextKey, user)
-            next.ServeHTTP(w, r.WithContext(ctx))
-        })
-    }
-}
-
-func UserFromContext(ctx context.Context) (core.UserPublic, bool) {
-    user, ok := ctx.Value(userContextKey).(core.UserPublic)
-    return user, ok
-}
-```
-
-Usage:
-
-```go
-verifier, err := newMongoSessionVerifier(ctx, cfg.Mongo) // or newPgxSessionVerifier
-if err != nil {
-    log.Fatal(err)
-}
-requireAuth := middleware.RequireAuth(verifier)
-
+requireAuth := middleware.RequireAuth(svc)
 mux.Handle("/profile", requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
     if user, ok := middleware.UserFromContext(r.Context()); ok {
-        _, _ = w.Write([]byte(user.Email))
+        respondJSON(w, http.StatusOK, user)
         return
     }
     http.Error(w, "user missing", http.StatusInternalServerError)
 })))
 ```
 
-All that's left is implementing `SessionVerifier` for your chosen backend. Both backends persist a SHA-256 hash of the token, so the verifier reproduces the same hashing before querying the session repository.
-
-### MongoDB session verifier
-
-```go
-package middleware
-
-import (
-    "context"
-    "crypto/sha256"
-    "encoding/hex"
-    "errors"
-    "time"
-
-    "github.com/deicod/auth/core"
-    "github.com/deicod/auth/mgo"
-    "github.com/deicod/auth/mgo/models"
-    mgorepos "github.com/deicod/auth/mgo/repos"
-    "go.mongodb.org/mongo-driver/mongo"
-    "go.mongodb.org/mongo-driver/mongo/options"
-)
-
-type mongoSessionVerifier struct {
-    client   *mongo.Client
-    sessions *mgorepos.SessionRepository
-    users    *mgorepos.UserRepository
-}
-
-func newMongoSessionVerifier(ctx context.Context, cfg mgo.Config) (*mongoSessionVerifier, error) {
-    if cfg.OperationTimeout == 0 {
-        cfg.OperationTimeout = 30 * time.Second
-    }
-    if cfg.UsersCollection == "" {
-        cfg.UsersCollection = "users"
-    }
-    if cfg.SessionsCollection == "" {
-        cfg.SessionsCollection = "sessions"
-    }
-
-    client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.URI))
-    if err != nil {
-        return nil, err
-    }
-    if err := client.Ping(ctx, nil); err != nil {
-        return nil, err
-    }
-
-    db := client.Database(cfg.Database)
-    verifier := &mongoSessionVerifier{
-        client:   client,
-        sessions: mgorepos.NewSessionRepository(db.Collection(cfg.SessionsCollection), cfg.OperationTimeout),
-        users:    mgorepos.NewUserRepository(db.Collection(cfg.UsersCollection), cfg.OperationTimeout),
-    }
-    return verifier, nil
-}
-
-func (v *mongoSessionVerifier) UserFromToken(ctx context.Context, token string) (core.UserPublic, error) {
-    sessionModel, err := v.sessions.FindByTokenHash(ctx, hashBearer(token))
-    switch {
-    case errors.Is(err, mongo.ErrNoDocuments):
-        return core.UserPublic{}, core.ErrSessionNotFound
-    case err != nil:
-        return core.UserPublic{}, err
-    }
-
-    if sessionModel.Revoked || time.Now().UTC().After(sessionModel.ExpiresAt) {
-        return core.UserPublic{}, core.ErrSessionNotFound
-    }
-
-    userModel, err := v.users.FindByID(ctx, sessionModel.UserID)
-    if err != nil {
-        return core.UserPublic{}, err
-    }
-    return core.NewUserPublic(models.UserToCore(userModel)), nil
-}
-
-func (v *mongoSessionVerifier) Close(ctx context.Context) error {
-    return v.client.Disconnect(ctx)
-}
-
-func hashBearer(token string) string {
-    sum := sha256.Sum256([]byte(token))
-    return hex.EncodeToString(sum[:])
-}
-```
-
-Handle the returned error during startup and close the Mongo client when shutting down your service.
-
-### PostgreSQL session verifier (pgx)
-
-```go
-package middleware
-
-import (
-    "context"
-    "crypto/sha256"
-    "encoding/hex"
-    "errors"
-    "time"
-
-    "github.com/deicod/auth/core"
-    "github.com/deicod/auth/pgx"
-    pgxmodels "github.com/deicod/auth/pgx/models"
-    pgxrepos "github.com/deicod/auth/pgx/repos"
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-)
-
-type pgxSessionVerifier struct {
-    pool     *pgxpool.Pool
-    sessions *pgxrepos.SessionRepository
-    users    *pgxrepos.UserRepository
-}
-
-func newPgxSessionVerifier(ctx context.Context, cfg pgx.Config) (*pgxSessionVerifier, error) {
-    poolCfg, err := pgxpool.ParseConfig(cfg.DSN)
-    if err != nil {
-        return nil, err
-    }
-    if cfg.MaxConns > 0 {
-        poolCfg.MaxConns = cfg.MaxConns
-    }
-    if cfg.MinConns > 0 {
-        poolCfg.MinConns = cfg.MinConns
-    }
-
-    pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
-    if err != nil {
-        return nil, err
-    }
-    if err := pool.Ping(ctx); err != nil {
-        pool.Close()
-        return nil, err
-    }
-
-    timeout := cfg.OperationTimeout
-    if timeout == 0 {
-        timeout = 30 * time.Second
-    }
-
-    verifier := &pgxSessionVerifier{
-        pool:     pool,
-        sessions: pgxrepos.NewSessionRepository(pool, timeout),
-        users:    pgxrepos.NewUserRepository(pool, timeout),
-    }
-    return verifier, nil
-}
-
-func (v *pgxSessionVerifier) UserFromToken(ctx context.Context, token string) (core.UserPublic, error) {
-    sessionModel, err := v.sessions.FindByTokenHash(ctx, hashBearer(token))
-    switch {
-    case errors.Is(err, pgx.ErrNoRows):
-        return core.UserPublic{}, core.ErrSessionNotFound
-    case err != nil:
-        return core.UserPublic{}, err
-    }
-
-    if sessionModel.Revoked || time.Now().UTC().After(sessionModel.ExpiresAt) {
-        return core.UserPublic{}, core.ErrSessionNotFound
-    }
-
-    userModel, err := v.users.FindByID(ctx, sessionModel.UserID)
-    if err != nil {
-        return core.UserPublic{}, err
-    }
-    return core.NewUserPublic(pgxmodels.UserToCore(userModel)), nil
-}
-
-func (v *pgxSessionVerifier) Close() {
-    v.pool.Close()
-}
-
-func hashBearer(token string) string {
-    sum := sha256.Sum256([]byte(token))
-    return hex.EncodeToString(sum[:])
-}
-```
-
-Attach `RequireAuth` to whichever router you use, and remember to close the verifier (disconnect Mongo / close pgx pool) during shutdown.
+`middleware.SessionFromContext` is also available if you need to inspect the active session (user agent, IP, expiry, etc.). No additional database wiring is required—the middleware simply calls `svc.AuthenticateSession`, which hashes the bearer token, fetches the session record via the configured backend and returns the associated user.
 
 ## Tokens, Sessions and Email
 

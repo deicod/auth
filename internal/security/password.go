@@ -1,4 +1,4 @@
-package pgx
+package security
 
 import (
 	"crypto/rand"
@@ -11,15 +11,15 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-type passwordHasher struct {
+type PasswordHasher struct {
 	cfg config.Argon2
 }
 
-func newPasswordHasher(cfg config.Argon2) passwordHasher {
-	return passwordHasher{cfg: cfg}
+func NewPasswordHasher(cfg config.Argon2) *PasswordHasher {
+	return &PasswordHasher{cfg: cfg}
 }
 
-func (h passwordHasher) Hash(password string) (string, error) {
+func (h *PasswordHasher) Hash(password string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
@@ -33,7 +33,7 @@ func (h passwordHasher) Hash(password string) (string, error) {
 	return encoded, nil
 }
 
-func (h passwordHasher) Verify(encoded, password string) error {
+func (h *PasswordHasher) Verify(encoded, password string) error {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 5 {
 		return errors.New("invalid hash format")
