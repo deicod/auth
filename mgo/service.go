@@ -112,6 +112,10 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 	}
 
 	db := client.Database(mongoCfg.Database)
+	if err := ensureIndexes(ctx, db, mongoCfg); err != nil {
+		_ = client.Disconnect(ctx)
+		return nil, err
+	}
 	mailer := email.Sender(email.NopSender{})
 	if cfg.Email.Host != "" {
 		mailer = email.NewMailer(cfg.Email)

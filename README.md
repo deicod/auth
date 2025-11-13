@@ -47,11 +47,13 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 - `Database`: database name.
 - `{Users,Sessions,Verification,PasswordReset,EmailChange}Collection`: collection names (defaults provided).
 - `OperationTimeout`: per call timeout for repository operations.
+- The Mongo service now ensures the essential indexes (unique `email`/`username`, unique `token_hash` values, TTL on `expires_at`) the first time it connects, so tokens and sessions expire automatically even if you forget to add indexes manually.
 
 ### PostgreSQL Config (`pgx.Config`)
 - `DSN`: PostgreSQL connection string (e.g. `postgres://user:pass@localhost:5432/auth?sslmode=disable`).
 - `MaxConns`, `MinConns`, `HealthCheckInterval`, `MaxConnLifetime`, `MaxConnIdleTime`: passed to `pgxpool`.
 - `OperationTimeout`: context deadline used by repositories.
+- Embedded migrations now create helper indexes on `expires_at` for sessions and token tables, so scheduled cleanup jobs (or `DELETE ... WHERE expires_at < now()`) stay efficient. PostgreSQL does not support TTL indexes natively, so you still need a periodic cleanup job if you want automatic removal.
 
 > ℹ️ The pgx backend applies embedded SQL migrations automatically and expects PostgreSQL 16+ (for the `uuidv7()` default). If you're on an older version, replace the default in `pgx/migrations/0001_init.sql` or create the function manually.
 
