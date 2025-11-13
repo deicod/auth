@@ -2,8 +2,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/pgx/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -34,7 +36,7 @@ func (r *EmailChangeRepository) Create(ctx context.Context, req models.EmailChan
 		req.UserID, req.NewEmail, req.TokenHash, req.ExpiresAt, req.CreatedAt, req.ConsumedAt,
 	)
 	if err := row.Scan(&req.ID); err != nil {
-		return models.EmailChange{}, err
+		return models.EmailChange{}, ctxutil.NormalizeError(err, "pgx.email_change.insert")
 	}
 	return req, nil
 }
@@ -43,14 +45,21 @@ func (r *EmailChangeRepository) FindByHash(ctx context.Context, hash string) (mo
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 	row := r.pool.QueryRow(ctx, `SELECT id, user_id, new_email, token_hash, expires_at, created_at, consumed_at FROM email_change_requests WHERE token_hash=$1`, hash)
-	return scanEmailChange(row)
+	req, err := scanEmailChange(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.EmailChange{}, err
+		}
+		return models.EmailChange{}, ctxutil.NormalizeError(err, "pgx.email_change.find_by_hash")
+	}
+	return req, nil
 }
 
 func (r *EmailChangeRepository) Consume(ctx context.Context, id uuid.UUID, consumedAt time.Time) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 	_, err := r.pool.Exec(ctx, `UPDATE email_change_requests SET consumed_at=$1 WHERE id=$2`, consumedAt, id)
-	return err
+	return ctxutil.NormalizeError(err, "pgx.email_change.consume")
 }
 
 func scanEmailChange(row pgx.Row) (models.EmailChange, error) {

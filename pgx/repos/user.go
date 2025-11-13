@@ -2,10 +2,12 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/pgx/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -45,7 +47,7 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 		user.CreatedAt, user.UpdatedAt, user.VerifiedAt, user.LastLoginAt,
 	)
 	if err := row.Scan(&user.ID); err != nil {
-		return models.User{}, err
+		return models.User{}, ctxutil.NormalizeError(err, "pgx.user.insert")
 	}
 	return user, nil
 }
@@ -55,7 +57,14 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (models.
 	defer cancel()
 
 	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE email=$1`, email)
-	return scanUser(row)
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.User{}, err
+		}
+		return models.User{}, ctxutil.NormalizeError(err, "pgx.user.find_by_email")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) FindByUsername(ctx context.Context, username string) (models.User, error) {
@@ -63,7 +72,14 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	defer cancel()
 
 	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE username=$1`, username)
-	return scanUser(row)
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.User{}, err
+		}
+		return models.User{}, ctxutil.NormalizeError(err, "pgx.user.find_by_username")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (models.User, error) {
@@ -71,7 +87,14 @@ func (r *UserRepository) FindByID(ctx context.Context, id uuid.UUID) (models.Use
 	defer cancel()
 
 	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE id=$1`, id)
-	return scanUser(row)
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return models.User{}, err
+		}
+		return models.User{}, ctxutil.NormalizeError(err, "pgx.user.find_by_id")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields map[string]interface{}) error {
@@ -92,14 +115,14 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields 
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id=$%d", strings.Join(setParts, ", "), idx)
 	_, err := r.pool.Exec(ctx, query, args...)
-	return err
+	return ctxutil.NormalizeError(err, "pgx.user.update_fields")
 }
 
 func (r *UserRepository) DeleteByID(ctx context.Context, id uuid.UUID) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 	_, err := r.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id)
-	return err
+	return ctxutil.NormalizeError(err, "pgx.user.delete_by_id")
 }
 
 func scanUser(row pgx.Row) (models.User, error) {

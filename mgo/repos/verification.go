@@ -2,8 +2,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -31,7 +33,7 @@ func (r *VerificationRepository) Create(ctx context.Context, token models.Verifi
 	defer cancel()
 
 	_, err := r.coll.InsertOne(ctx, token)
-	return token, err
+	return token, ctxutil.NormalizeError(err, "mgo.verification.insert")
 }
 
 func (r *VerificationRepository) FindByHash(ctx context.Context, hash string) (models.VerificationToken, error) {
@@ -40,7 +42,13 @@ func (r *VerificationRepository) FindByHash(ctx context.Context, hash string) (m
 
 	var token models.VerificationToken
 	err := r.coll.FindOne(ctx, bson.M{"token_hash": hash}).Decode(&token)
-	return token, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return token, err
+		}
+		return token, ctxutil.NormalizeError(err, "mgo.verification.find_by_hash")
+	}
+	return token, nil
 }
 
 func (r *VerificationRepository) Consume(ctx context.Context, id primitive.ObjectID, consumedAt time.Time) error {
@@ -49,7 +57,7 @@ func (r *VerificationRepository) Consume(ctx context.Context, id primitive.Objec
 
 	update := bson.M{"$set": bson.M{"consumed_at": consumedAt}}
 	_, err := r.coll.UpdateByID(ctx, id, update)
-	return err
+	return ctxutil.NormalizeError(err, "mgo.verification.consume")
 }
 
 func (r *VerificationRepository) DeleteByID(ctx context.Context, id primitive.ObjectID) error {
@@ -57,5 +65,5 @@ func (r *VerificationRepository) DeleteByID(ctx context.Context, id primitive.Ob
 	defer cancel()
 
 	_, err := r.coll.DeleteOne(ctx, bson.M{"_id": id})
-	return err
+	return ctxutil.NormalizeError(err, "mgo.verification.delete")
 }

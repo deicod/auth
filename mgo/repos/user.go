@@ -2,8 +2,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,7 +36,7 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 		user.ID = primitive.NewObjectID()
 	}
 	_, err := r.coll.InsertOne(ctx, user)
-	return user, err
+	return user, ctxutil.NormalizeError(err, "mgo.user.insert")
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (models.User, error) {
@@ -43,7 +45,13 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (models.
 
 	var user models.User
 	err := r.coll.FindOne(ctx, bson.M{"email": email}).Decode(&user)
-	return user, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return user, err
+		}
+		return user, ctxutil.NormalizeError(err, "mgo.user.find_by_email")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) FindByUsername(ctx context.Context, username string) (models.User, error) {
@@ -52,7 +60,13 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 
 	var user models.User
 	err := r.coll.FindOne(ctx, bson.M{"username": username}).Decode(&user)
-	return user, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return user, err
+		}
+		return user, ctxutil.NormalizeError(err, "mgo.user.find_by_username")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, id primitive.ObjectID) (models.User, error) {
@@ -61,7 +75,13 @@ func (r *UserRepository) FindByID(ctx context.Context, id primitive.ObjectID) (m
 
 	var user models.User
 	err := r.coll.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
-	return user, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return user, err
+		}
+		return user, ctxutil.NormalizeError(err, "mgo.user.find_by_id")
+	}
+	return user, nil
 }
 
 func (r *UserRepository) UpdateFields(ctx context.Context, id primitive.ObjectID, fields bson.M) error {
@@ -70,7 +90,7 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id primitive.ObjectID
 
 	update := bson.M{"$set": fields}
 	_, err := r.coll.UpdateByID(ctx, id, update)
-	return err
+	return ctxutil.NormalizeError(err, "mgo.user.update_fields")
 }
 
 func (r *UserRepository) DeleteByID(ctx context.Context, id primitive.ObjectID) error {
@@ -78,5 +98,5 @@ func (r *UserRepository) DeleteByID(ctx context.Context, id primitive.ObjectID) 
 	defer cancel()
 
 	_, err := r.coll.DeleteOne(ctx, bson.M{"_id": id})
-	return err
+	return ctxutil.NormalizeError(err, "mgo.user.delete_by_id")
 }

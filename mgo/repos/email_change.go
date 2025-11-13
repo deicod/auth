@@ -2,8 +2,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -31,7 +33,7 @@ func (r *EmailChangeRepository) Create(ctx context.Context, req models.EmailChan
 	defer cancel()
 
 	_, err := r.coll.InsertOne(ctx, req)
-	return req, err
+	return req, ctxutil.NormalizeError(err, "mgo.email_change.insert")
 }
 
 func (r *EmailChangeRepository) FindByHash(ctx context.Context, hash string) (models.EmailChange, error) {
@@ -40,7 +42,13 @@ func (r *EmailChangeRepository) FindByHash(ctx context.Context, hash string) (mo
 
 	var req models.EmailChange
 	err := r.coll.FindOne(ctx, bson.M{"token_hash": hash}).Decode(&req)
-	return req, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return req, err
+		}
+		return req, ctxutil.NormalizeError(err, "mgo.email_change.find_by_hash")
+	}
+	return req, nil
 }
 
 func (r *EmailChangeRepository) Consume(ctx context.Context, id primitive.ObjectID, consumedAt time.Time) error {
@@ -48,5 +56,5 @@ func (r *EmailChangeRepository) Consume(ctx context.Context, id primitive.Object
 	defer cancel()
 
 	_, err := r.coll.UpdateByID(ctx, id, bson.M{"$set": bson.M{"consumed_at": consumedAt}})
-	return err
+	return ctxutil.NormalizeError(err, "mgo.email_change.consume")
 }

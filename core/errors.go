@@ -13,4 +13,5 @@ var (
 	ErrSessionNotFound    = errors.New("session not found")
 	ErrEmailNotVerified   = errors.New("email not verified")
 	ErrInvalidInput       = errors.New("invalid input")
+	ErrDeadline           = errors.New("operation timed out")
 )

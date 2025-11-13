@@ -2,8 +2,10 @@ package repos
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -34,7 +36,7 @@ func (r *SessionRepository) Create(ctx context.Context, session models.Session) 
 		session.ID = primitive.NewObjectID()
 	}
 	_, err := r.coll.InsertOne(ctx, session)
-	return session, err
+	return session, ctxutil.NormalizeError(err, "mgo.session.insert")
 }
 
 func (r *SessionRepository) FindByTokenHash(ctx context.Context, hash string) (models.Session, error) {
@@ -43,7 +45,13 @@ func (r *SessionRepository) FindByTokenHash(ctx context.Context, hash string) (m
 
 	var session models.Session
 	err := r.coll.FindOne(ctx, bson.M{"token_hash": hash}).Decode(&session)
-	return session, err
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return session, err
+		}
+		return session, ctxutil.NormalizeError(err, "mgo.session.find_by_hash")
+	}
+	return session, nil
 }
 
 func (r *SessionRepository) Revoke(ctx context.Context, id primitive.ObjectID) error {
@@ -51,5 +59,5 @@ func (r *SessionRepository) Revoke(ctx context.Context, id primitive.ObjectID) e
 	defer cancel()
 
 	_, err := r.coll.UpdateByID(ctx, id, bson.M{"$set": bson.M{"revoked": true}})
-	return err
+	return ctxutil.NormalizeError(err, "mgo.session.revoke")
 }
