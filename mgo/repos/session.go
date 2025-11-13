@@ -61,3 +61,11 @@ func (r *SessionRepository) Revoke(ctx context.Context, id primitive.ObjectID) e
 	_, err := r.coll.UpdateByID(ctx, id, bson.M{"$set": bson.M{"revoked": true}})
 	return ctxutil.NormalizeError(err, "mgo.session.revoke")
 }
+
+func (r *SessionRepository) RevokeByUser(ctx context.Context, userID primitive.ObjectID) error {
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+
+	_, err := r.coll.UpdateMany(ctx, bson.M{"user_id": userID, "revoked": false}, bson.M{"$set": bson.M{"revoked": true}})
+	return ctxutil.NormalizeError(err, "mgo.session.revoke_by_user")
+}

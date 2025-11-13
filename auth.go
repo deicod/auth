@@ -20,6 +20,7 @@ type Service interface {
 	InitiateEmailChange(ctx context.Context, cmd core.ChangeEmailCommand) error
 	ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand) (core.ChangeEmailResult, error)
 	AuthenticateSession(ctx context.Context, token string) (core.UserPublic, core.SessionPublic, error)
+	Logout(ctx context.Context, token string) error
 }
 
 type Backend string

@@ -77,6 +77,40 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 	}
 }
 
+func (h *AuthHandlers) Logout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, errors.New("missing bearer token"))
+			return
+		}
+		if err := h.svc.Logout(r.Context(), token); err != nil {
+			h.writeServiceError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (h *AuthHandlers) Me() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, errors.New("missing bearer token"))
+			return
+		}
+		user, session, err := h.svc.AuthenticateSession(r.Context(), token)
+		if err != nil {
+			h.writeServiceError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, map[string]interface{}{
+			"user":    user,
+			"session": session,
+		})
+	}
+}
+
 func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -181,6 +215,8 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 		writeJSONError(w, http.StatusBadRequest, err)
 	case errors.Is(err, core.ErrInvalidCredentials):
 		writeJSONError(w, http.StatusUnauthorized, err)
+	case errors.Is(err, core.ErrSessionNotFound):
+		writeJSONError(w, http.StatusUnauthorized, err)
 	case errors.Is(err, core.ErrUserNotFound):
 		writeJSONError(w, http.StatusNotFound, err)
 	case errors.Is(err, core.ErrTokenNotFound), errors.Is(err, core.ErrTokenConsumed), errors.Is(err, core.ErrTokenExpired):
@@ -235,4 +271,19 @@ func clientIP(r *http.Request) string {
 		return host
 	}
 	return r.RemoteAddr
+}
+
+func bearerToken(header string) (string, bool) {
+	parts := strings.Fields(header)
+	if len(parts) != 2 {
+		return "", false
+	}
+	if !strings.EqualFold(parts[0], "Bearer") {
+		return "", false
+	}
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return "", false
+	}
+	return token, true
 }

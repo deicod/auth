@@ -175,6 +175,8 @@ All handlers accept/return JSON and bubble up `core` errors with appropriate HTT
 | --- | --- | --- | --- |
 | `Register()` | `POST /auth/register` | `{email, username, password}` | `core.AuthResult` (user, session, token). |
 | `Login()` | `POST /auth/login` | `{email, password}` | `core.AuthResult`. |
+| `Logout()` | `POST /auth/logout` | Bearer token header | `204 No Content`. |
+| `Me()` | `GET /auth/me` | Bearer token header | `{user, session}`. |
 | `VerifyEmail()` | `POST /auth/verify` | `{token}` | `core.VerifyEmailResult`. |
 | `ForgotPassword()` | `POST /auth/forgot` | `{email}` | `{"status":"email_sent"}`. |
 | `ResetPassword()` | `POST /auth/reset` | `{token, new_password}` | `core.UserPublic`. |
@@ -209,6 +211,7 @@ mux.Handle("/profile", requireAuth(http.HandlerFunc(func(w http.ResponseWriter, 
 ## Tokens, Sessions and Email
 
 - Sessions store a hashed token plus metadata (IP, user-agent) and respect `config.Session.Length`.
+- Password resets revoke all of the user's existing sessions to force fresh logins.
 - Verification, password reset and email-change tokens are short-lived; customize TTLs through `cfg.Tokens`.
 - Passwords use Argon2id (via `cfg.Argon2`). Raising `Memory` or `Time` enforces stronger hashing requirements.
 - Set `cfg.Email` to an SMTP server (host, port, credentials, `UseSSL`) to enable automated verification/reset/email-change emails. With an empty host, the `email.NopSender` satisfies the interface so the flows still succeed in tests.

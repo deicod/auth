@@ -138,6 +138,14 @@ func (s *sessionStore) Revoke(ctx context.Context, id core.ID) error {
 	return s.repo.Revoke(ctx, uuid)
 }
 
+func (s *sessionStore) RevokeByUser(ctx context.Context, userID core.ID) error {
+	uuid, err := pgxmodels.UUIDFromCore(userID)
+	if err != nil {
+		return err
+	}
+	return s.repo.RevokeByUser(ctx, uuid)
+}
+
 type verificationStore struct {
 	repo *repos.VerificationRepository
 }

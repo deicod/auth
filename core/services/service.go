@@ -247,6 +247,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 	if err := s.stores.PasswordResets.Consume(ctx, token.ID, now); err != nil {
 		return core.UserPublic{}, err
 	}
+	if err := s.stores.Sessions.RevokeByUser(ctx, token.UserID); err != nil {
+		return core.UserPublic{}, err
+	}
 
 	user, err := s.stores.Users.FindByID(ctx, token.UserID)
 	if err != nil {
@@ -339,6 +342,29 @@ func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (co
 		return core.UserPublic{}, core.SessionPublic{}, err
 	}
 	return core.NewUserPublic(user), core.NewSessionPublic(session), nil
+}
+
+func (s *AuthService) Logout(ctx context.Context, token string) error {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return core.ErrSessionNotFound
+	}
+	hash := security.HashToken(token)
+	session, err := s.stores.Sessions.FindByTokenHash(ctx, hash)
+	if err != nil {
+		if errors.Is(err, core.ErrSessionNotFound) {
+			return core.ErrSessionNotFound
+		}
+		return err
+	}
+
+	now := time.Now().UTC()
+	if session.Revoked || now.After(session.ExpiresAt) {
+		_ = s.stores.Sessions.Revoke(ctx, session.ID)
+		return core.ErrSessionNotFound
+	}
+
+	return s.stores.Sessions.Revoke(ctx, session.ID)
 }
 
 func (s *AuthService) createSession(ctx context.Context, userID core.ID, userAgent, ip string) (core.Session, string, error) {

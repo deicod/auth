@@ -144,6 +144,14 @@ func (s *sessionStore) Revoke(ctx context.Context, id core.ID) error {
 	return s.repo.Revoke(ctx, oid)
 }
 
+func (s *sessionStore) RevokeByUser(ctx context.Context, userID core.ID) error {
+	oid, err := models.ObjectIDFromCore(userID)
+	if err != nil {
+		return err
+	}
+	return s.repo.RevokeByUser(ctx, oid)
+}
+
 type verificationStore struct {
 	repo *repos.VerificationRepository
 }

@@ -63,6 +63,13 @@ func (r *SessionRepository) Revoke(ctx context.Context, id uuid.UUID) error {
 	return ctxutil.NormalizeError(err, "pgx.session.revoke")
 }
 
+func (r *SessionRepository) RevokeByUser(ctx context.Context, userID uuid.UUID) error {
+	ctx, cancel := r.withContext(ctx)
+	defer cancel()
+	_, err := r.pool.Exec(ctx, `UPDATE sessions SET revoked=true WHERE user_id=$1 AND revoked=false`, userID)
+	return ctxutil.NormalizeError(err, "pgx.session.revoke_by_user")
+}
+
 func scanSession(row pgx.Row) (models.Session, error) {
 	var session models.Session
 	err := row.Scan(&session.ID, &session.UserID, &session.TokenHash, &session.UserAgent, &session.IP, &session.ExpiresAt, &session.CreatedAt, &session.Revoked)

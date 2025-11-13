@@ -90,6 +90,7 @@ type SessionStore interface {
 	Create(ctx context.Context, params CreateSessionParams) (core.Session, error)
 	FindByTokenHash(ctx context.Context, hash string) (core.Session, error)
 	Revoke(ctx context.Context, id core.ID) error
+	RevokeByUser(ctx context.Context, userID core.ID) error
 }
 
 type VerificationStore interface {
