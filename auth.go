@@ -8,6 +8,7 @@ import (
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/mgo"
+	pgxbackend "github.com/deicod/auth/pgx"
 )
 
 type Service interface {
@@ -30,6 +31,7 @@ const (
 type Config struct {
 	Backend Backend
 	Mongo   *mgo.Config
+	Pgx     *pgxbackend.Config
 	Session config.Session
 	Tokens  config.Tokens
 	Argon2  config.Argon2
@@ -40,6 +42,7 @@ func DefaultConfig() Config {
 	return Config{
 		Backend: BackendMongo,
 		Mongo:   func() *mgo.Config { cfg := mgo.DefaultConfig(); return &cfg }(),
+		Pgx:     func() *pgxbackend.Config { cfg := pgxbackend.DefaultConfig(); return &cfg }(),
 		Session: config.DefaultSession(),
 		Tokens:  config.DefaultTokens(),
 		Argon2:  config.DefaultArgon2(),
@@ -61,7 +64,16 @@ func NewService(ctx context.Context, cfg Config) (Service, error) {
 			Email:   cfg.Email,
 		})
 	case BackendPostgres:
-		return nil, fmt.Errorf("postgres backend not implemented yet")
+		if cfg.Pgx == nil {
+			return nil, errors.New("pgx config is required")
+		}
+		return pgxbackend.NewService(ctx, pgxbackend.ServiceConfig{
+			Pgx:     *cfg.Pgx,
+			Session: cfg.Session,
+			Tokens:  cfg.Tokens,
+			Argon2:  cfg.Argon2,
+			Email:   cfg.Email,
+		})
 	default:
 		return nil, fmt.Errorf("unsupported backend %q", cfg.Backend)
 	}
