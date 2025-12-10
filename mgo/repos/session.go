@@ -7,9 +7,8 @@ import (
 
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type SessionRepository struct {
@@ -33,7 +32,7 @@ func (r *SessionRepository) Create(ctx context.Context, session models.Session) 
 	defer cancel()
 
 	if session.ID.IsZero() {
-		session.ID = primitive.NewObjectID()
+		session.ID = bson.NewObjectID()
 	}
 	_, err := r.coll.InsertOne(ctx, session)
 	return session, ctxutil.NormalizeError(err, "mgo.session.insert")
@@ -54,7 +53,7 @@ func (r *SessionRepository) FindByTokenHash(ctx context.Context, hash string) (m
 	return session, nil
 }
 
-func (r *SessionRepository) Revoke(ctx context.Context, id primitive.ObjectID) error {
+func (r *SessionRepository) Revoke(ctx context.Context, id bson.ObjectID) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
@@ -62,7 +61,7 @@ func (r *SessionRepository) Revoke(ctx context.Context, id primitive.ObjectID) e
 	return ctxutil.NormalizeError(err, "mgo.session.revoke")
 }
 
-func (r *SessionRepository) RevokeByUser(ctx context.Context, userID primitive.ObjectID) error {
+func (r *SessionRepository) RevokeByUser(ctx context.Context, userID bson.ObjectID) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 

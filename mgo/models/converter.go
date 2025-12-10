@@ -4,22 +4,22 @@ import (
 	"fmt"
 
 	"github.com/deicod/auth/core"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func ObjectIDFromCore(id core.ID) (primitive.ObjectID, error) {
+func ObjectIDFromCore(id core.ID) (bson.ObjectID, error) {
 	if id == "" {
-		return primitive.NilObjectID, nil
+		return bson.NilObjectID, nil
 	}
-	oid, err := primitive.ObjectIDFromHex(string(id))
+	oid, err := bson.ObjectIDFromHex(string(id))
 	if err != nil {
-		return primitive.NilObjectID, fmt.Errorf("invalid id: %w", err)
+		return bson.NilObjectID, fmt.Errorf("invalid id: %w", err)
 	}
 	return oid, nil
 }
 
-func CoreIDFromObjectID(oid primitive.ObjectID) core.ID {
-	if oid == primitive.NilObjectID {
+func CoreIDFromObjectID(oid bson.ObjectID) core.ID {
+	if oid == bson.NilObjectID {
 		return ""
 	}
 	return core.ID(oid.Hex())

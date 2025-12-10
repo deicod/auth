@@ -9,9 +9,8 @@ import (
 	"github.com/deicod/auth/core/services"
 	"github.com/deicod/auth/mgo/models"
 	"github.com/deicod/auth/mgo/repos"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type userStore struct {
@@ -166,7 +165,7 @@ func (s *verificationStore) Create(ctx context.Context, params services.CreateVe
 		return core.VerificationToken{}, err
 	}
 	token := models.VerificationToken{
-		ID:        primitive.NewObjectID(),
+		ID:        bson.NewObjectID(),
 		UserID:    userID,
 		TokenHash: params.TokenHash,
 		ExpiresAt: params.ExpiresAt,
@@ -220,7 +219,7 @@ func (s *passwordResetStore) Create(ctx context.Context, params services.CreateP
 		return core.PasswordResetToken{}, err
 	}
 	token := models.PasswordReset{
-		ID:        primitive.NewObjectID(),
+		ID:        bson.NewObjectID(),
 		UserID:    userID,
 		TokenHash: params.TokenHash,
 		ExpiresAt: params.ExpiresAt,
@@ -266,7 +265,7 @@ func (s *emailChangeStore) Create(ctx context.Context, params services.CreateEma
 		return core.EmailChangeRequest{}, err
 	}
 	token := models.EmailChange{
-		ID:        primitive.NewObjectID(),
+		ID:        bson.NewObjectID(),
 		UserID:    userID,
 		NewEmail:  params.NewEmail,
 		TokenHash: params.TokenHash,

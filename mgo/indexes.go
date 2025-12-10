@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 func ensureIndexes(ctx context.Context, db *mongo.Database, cfg Config) error {
@@ -18,11 +18,11 @@ func ensureIndexes(ctx context.Context, db *mongo.Database, cfg Config) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	ttlIndex := func(name string) *options.IndexOptions {
+	ttlIndex := func(name string) *options.IndexOptionsBuilder {
 		return options.Index().SetExpireAfterSeconds(0).SetName(name)
 	}
 
-	uniqIndex := func(name string) *options.IndexOptions {
+	uniqIndex := func(name string) *options.IndexOptionsBuilder {
 		return options.Index().SetUnique(true).SetName(name)
 	}
 

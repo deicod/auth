@@ -10,8 +10,8 @@ import (
 	"github.com/deicod/auth/email"
 	"github.com/deicod/auth/internal/security"
 	"github.com/deicod/auth/mgo/repos"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type Service struct {
@@ -27,7 +27,7 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		return nil, errors.New("mongo database is required")
 	}
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.Mongo.URI))
+	client, err := mongo.Connect(options.Client().ApplyURI(cfg.Mongo.URI))
 	if err != nil {
 		return nil, err
 	}

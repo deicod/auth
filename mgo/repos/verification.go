@@ -7,9 +7,8 @@ import (
 
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type VerificationRepository struct {
@@ -51,7 +50,7 @@ func (r *VerificationRepository) FindByHash(ctx context.Context, hash string) (m
 	return token, nil
 }
 
-func (r *VerificationRepository) Consume(ctx context.Context, id primitive.ObjectID, consumedAt time.Time) error {
+func (r *VerificationRepository) Consume(ctx context.Context, id bson.ObjectID, consumedAt time.Time) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
@@ -60,7 +59,7 @@ func (r *VerificationRepository) Consume(ctx context.Context, id primitive.Objec
 	return ctxutil.NormalizeError(err, "mgo.verification.consume")
 }
 
-func (r *VerificationRepository) DeleteByID(ctx context.Context, id primitive.ObjectID) error {
+func (r *VerificationRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 

@@ -7,9 +7,8 @@ import (
 
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type UserRepository struct {
@@ -33,7 +32,7 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 	defer cancel()
 
 	if user.ID.IsZero() {
-		user.ID = primitive.NewObjectID()
+		user.ID = bson.NewObjectID()
 	}
 	_, err := r.coll.InsertOne(ctx, user)
 	return user, ctxutil.NormalizeError(err, "mgo.user.insert")
@@ -69,7 +68,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	return user, nil
 }
 
-func (r *UserRepository) FindByID(ctx context.Context, id primitive.ObjectID) (models.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id bson.ObjectID) (models.User, error) {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
@@ -84,7 +83,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id primitive.ObjectID) (m
 	return user, nil
 }
 
-func (r *UserRepository) UpdateFields(ctx context.Context, id primitive.ObjectID, fields bson.M) error {
+func (r *UserRepository) UpdateFields(ctx context.Context, id bson.ObjectID, fields bson.M) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
@@ -93,7 +92,7 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id primitive.ObjectID
 	return ctxutil.NormalizeError(err, "mgo.user.update_fields")
 }
 
-func (r *UserRepository) DeleteByID(ctx context.Context, id primitive.ObjectID) error {
+func (r *UserRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 

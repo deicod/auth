@@ -7,9 +7,8 @@ import (
 
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 type EmailChangeRepository struct {
@@ -51,7 +50,7 @@ func (r *EmailChangeRepository) FindByHash(ctx context.Context, hash string) (mo
 	return req, nil
 }
 
-func (r *EmailChangeRepository) Consume(ctx context.Context, id primitive.ObjectID, consumedAt time.Time) error {
+func (r *EmailChangeRepository) Consume(ctx context.Context, id bson.ObjectID, consumedAt time.Time) error {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
