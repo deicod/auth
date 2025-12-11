@@ -89,6 +89,8 @@ func main() {
     mux := http.NewServeMux()
     mux.Handle("/auth/register", authHandlers.Register())
     mux.Handle("/auth/login", authHandlers.Login())
+    mux.Handle("/auth/logout", authHandlers.Logout())
+    mux.Handle("/auth/me", authHandlers.Me())
     mux.Handle("/auth/verify", authHandlers.VerifyEmail())
     mux.Handle("/auth/forgot", authHandlers.ForgotPassword())
     mux.Handle("/auth/reset", authHandlers.ResetPassword())
@@ -151,9 +153,15 @@ func main() {
 
     router := http.NewServeMux()
     authHandlers := handlers.New(svc)
-    router.Handle("/auth/login", authHandlers.Login())
     router.Handle("/auth/register", authHandlers.Register())
+    router.Handle("/auth/login", authHandlers.Login())
+    router.Handle("/auth/logout", authHandlers.Logout())
+    router.Handle("/auth/me", authHandlers.Me())
     router.Handle("/auth/verify", authHandlers.VerifyEmail())
+    router.Handle("/auth/forgot", authHandlers.ForgotPassword())
+    router.Handle("/auth/reset", authHandlers.ResetPassword())
+    router.Handle("/auth/email-change", authHandlers.InitiateEmailChange())
+    router.Handle("/auth/email-confirm", authHandlers.ConfirmEmailChange())
 
     log.Fatal(http.ListenAndServe(":3000", router))
 }
