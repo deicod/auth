@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/wneessen/go-mail v0.7.2
 	go.mongodb.org/mongo-driver/v2 v2.4.1
 	golang.org/x/crypto v0.44.0

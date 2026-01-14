@@ -9,6 +9,7 @@ import (
 	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/mgo"
 	pgxbackend "github.com/deicod/auth/pgx"
+	sqlitebackend "github.com/deicod/auth/sqlite"
 )
 
 type Service interface {
@@ -28,12 +29,14 @@ type Backend string
 const (
 	BackendMongo    Backend = "mongo"
 	BackendPostgres Backend = "postgres"
+	BackendSQLite   Backend = "sqlite"
 )
 
 type Config struct {
 	Backend Backend
 	Mongo   *mgo.Config
 	Pgx     *pgxbackend.Config
+	Sqlite  *sqlitebackend.Config
 	Session config.Session
 	Tokens  config.Tokens
 	Argon2  config.Argon2
@@ -45,6 +48,7 @@ func DefaultConfig() Config {
 		Backend: BackendMongo,
 		Mongo:   func() *mgo.Config { cfg := mgo.DefaultConfig(); return &cfg }(),
 		Pgx:     func() *pgxbackend.Config { cfg := pgxbackend.DefaultConfig(); return &cfg }(),
+		Sqlite:  func() *sqlitebackend.Config { cfg := sqlitebackend.DefaultConfig(); return &cfg }(),
 		Session: config.DefaultSession(),
 		Tokens:  config.DefaultTokens(),
 		Argon2:  config.DefaultArgon2(),
@@ -71,6 +75,17 @@ func NewService(ctx context.Context, cfg Config) (Service, error) {
 		}
 		return pgxbackend.NewService(ctx, pgxbackend.ServiceConfig{
 			Pgx:     *cfg.Pgx,
+			Session: cfg.Session,
+			Tokens:  cfg.Tokens,
+			Argon2:  cfg.Argon2,
+			Email:   cfg.Email,
+		})
+	case BackendSQLite:
+		if cfg.Sqlite == nil {
+			return nil, errors.New("sqlite config is required")
+		}
+		return sqlitebackend.NewService(ctx, sqlitebackend.ServiceConfig{
+			Sqlite:  *cfg.Sqlite,
 			Session: cfg.Session,
 			Tokens:  cfg.Tokens,
 			Argon2:  cfg.Argon2,
