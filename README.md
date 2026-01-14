@@ -19,6 +19,7 @@
 | `handlers/` | JSON HTTP handlers that wrap any `auth.Service`. |
 | `mgo/` | MongoDB service implementation, repositories and configuration helpers. |
 | `pgx/` | PostgreSQL (pgxpool) implementation with migrations and repositories. |
+| `sqlite/` | SQLite (CGO) implementation with migrations and repositories. |
 | `config/` | Shared configuration structs for sessions, tokens, Argon2 and SMTP. |
 | `email/` | SMTP sender implementation with a `NopSender` fallback. |
 
@@ -34,9 +35,10 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 
 | Field | Purpose | Default |
 | --- | --- | --- |
-| `Backend` | `auth.BackendMongo` or `auth.BackendPostgres`. | `auth.BackendMongo` |
+| `Backend` | `auth.BackendMongo`, `auth.BackendPostgres` or `auth.BackendSQLite`. | `auth.BackendMongo` |
 | `Mongo` | Pointer to `mgo.Config` (URI, db name, collection names, operation timeout). | `mgo.DefaultConfig()` |
 | `Pgx` | Pointer to `pgx.Config` (DSN, pool sizing, health checks, timeouts). | `pgx.DefaultConfig()` |
+| `Sqlite` | Pointer to `sqlite.Config` (DSN, connection pool settings). | `sqlite.DefaultConfig()` |
 | `Session` | Controls session length (`config.Session`). | 30 days |
 | `Tokens` | TTLs for verification/reset/email-change tokens (`config.Tokens`). | 48h/1h/24h |
 | `Argon2` | Cost settings for Argon2id hashing (`config.Argon2`). | Time=3, Memory=64MiB |
@@ -56,6 +58,12 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 - Embedded migrations now create helper indexes on `expires_at` for sessions and token tables, so scheduled cleanup jobs (or `DELETE ... WHERE expires_at < now()`) stay efficient. PostgreSQL does not support TTL indexes natively, so you still need a periodic cleanup job if you want automatic removal.
 
 > ℹ️ The pgx backend applies embedded SQL migrations automatically and expects PostgreSQL 16+ (for the `uuidv7()` default). If you're on an older version, replace the default in `pgx/migrations/0001_init.sql` or create the function manually.
+
+### SQLite Config (`sqlite.Config`)
+- `DSN`: SQLite connection string (e.g. `file:auth.db?_foreign_keys=on`). Use `:memory:` for in-memory.
+- `MaxOpenConns`, `MaxIdleConns`, `ConnMaxLifetime`: Connection pool settings.
+- `OperationTimeout`: Context deadline for queries.
+- SQL migrations are embedded and applied automatically on connection.
 
 ## Example: MongoDB Backend (`mgo`)
 
@@ -174,6 +182,37 @@ func closeService(ctx context.Context, svc auth.Service) {
 ```
 
 The pgx service automatically runs the embedded migration (`pgx/migrations/0001_init.sql`) when it connects. Ensure the configured database user can create tables and that the `uuid-ossp` extension or PostgreSQL 16+ UUID helpers are available.
+
+## Example: SQLite Backend (`sqlite`)
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+
+	"github.com/deicod/auth"
+	"github.com/deicod/auth/handlers"
+)
+
+func main() {
+	ctx := context.Background()
+
+	cfg := auth.DefaultConfig()
+	cfg.Backend = auth.BackendSQLite
+	cfg.Sqlite.DSN = "file:auth.db?_foreign_keys=on"
+
+	svc, err := auth.NewService(ctx, cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer closeService(ctx, svc)
+
+	// mount handlers...
+}
+```
 
 ## HTTP Handlers & JSON Contracts
 
