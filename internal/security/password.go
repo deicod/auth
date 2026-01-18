@@ -2,6 +2,7 @@ package security
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -69,19 +70,8 @@ func (h *PasswordHasher) Verify(encoded, password string) error {
 	}
 
 	computed := argon2.IDKey([]byte(password), salt, timeCost, memory, threads, uint32(len(hash)))
-	if !compareBytes(hash, computed) {
+	if subtle.ConstantTimeCompare(hash, computed) != 1 {
 		return errors.New("password mismatch")
 	}
 	return nil
-}
-
-func compareBytes(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	var result byte
-	for i := range a {
-		result |= a[i] ^ b[i]
-	}
-	return result == 0
 }
