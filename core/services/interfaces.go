@@ -33,6 +33,7 @@ type Dependencies struct {
 	TokenGenerator TokenGenerator
 	SessionCfg     config.Session
 	TokenCfg       config.Tokens
+	PasswordCfg    config.Password
 	Mailer         email.Sender
 }
 

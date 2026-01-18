@@ -19,6 +19,10 @@ type Argon2 struct {
 	KeyLen  uint32
 }
 
+type Password struct {
+	MinLength int
+}
+
 func DefaultSession() Session {
 	return Session{Length: 30 * 24 * time.Hour}
 }
@@ -38,4 +42,8 @@ func DefaultArgon2() Argon2 {
 		Threads: 2,
 		KeyLen:  32,
 	}
+}
+
+func DefaultPassword() Password {
+	return Password{MinLength: 8}
 }

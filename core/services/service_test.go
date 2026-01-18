@@ -39,7 +39,7 @@ func TestAuthServiceRegister(t *testing.T) {
 func TestAuthServiceLoginInvalidPassword(t *testing.T) {
     svc, _ := newTestService(t)
     ctx := context.Background()
-    _, _ = svc.Register(ctx, core.RegisterCommand{Email: "bob@example.com", Username: "bob", Password: "secret"})
+    _, _ = svc.Register(ctx, core.RegisterCommand{Email: "bob@example.com", Username: "bob", Password: "secretpass"})
 
     _, err := svc.Login(ctx, core.LoginCommand{Email: "bob@example.com", Password: "wrong"})
     if !errors.Is(err, core.ErrInvalidCredentials) {
@@ -50,7 +50,7 @@ func TestAuthServiceLoginInvalidPassword(t *testing.T) {
 func TestAuthServiceLogoutRevokesSession(t *testing.T) {
     svc, deps := newTestService(t)
     ctx := context.Background()
-    result, err := svc.Register(ctx, core.RegisterCommand{Email: "carol@example.com", Username: "carol", Password: "pwd"})
+    result, err := svc.Register(ctx, core.RegisterCommand{Email: "carol@example.com", Username: "carol", Password: "password123"})
     if err != nil {
         t.Fatalf("register failed: %v", err)
     }
@@ -67,7 +67,7 @@ func TestAuthServiceLogoutRevokesSession(t *testing.T) {
 func TestResetPasswordRevokesAllSessions(t *testing.T) {
     svc, deps := newTestService(t)
     ctx := context.Background()
-    result, err := svc.Register(ctx, core.RegisterCommand{Email: "dave@example.com", Username: "dave", Password: "start"})
+    result, err := svc.Register(ctx, core.RegisterCommand{Email: "dave@example.com", Username: "dave", Password: "startpassword"})
     if err != nil {
         t.Fatalf("register failed: %v", err)
     }
@@ -80,7 +80,7 @@ func TestResetPasswordRevokesAllSessions(t *testing.T) {
     }
     token := deps.mailer.resetTokens[len(deps.mailer.resetTokens)-1]
 
-    if _, err := svc.ResetPassword(ctx, core.ResetPasswordCommand{Token: token, NewPassword: "newpass"}); err != nil {
+    if _, err := svc.ResetPassword(ctx, core.ResetPasswordCommand{Token: token, NewPassword: "newpassword"}); err != nil {
         t.Fatalf("reset password failed: %v", err)
     }
 
@@ -93,7 +93,7 @@ func TestResetPasswordRevokesAllSessions(t *testing.T) {
 func TestVerifyEmailFlow(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	result, err := svc.Register(ctx, core.RegisterCommand{Email: "eve@example.com", Username: "eve", Password: "start"})
+	result, err := svc.Register(ctx, core.RegisterCommand{Email: "eve@example.com", Username: "eve", Password: "startpassword"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -117,14 +117,14 @@ func TestVerifyEmailFlow(t *testing.T) {
 func TestEmailChangeFlow(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	res, err := svc.Register(ctx, core.RegisterCommand{Email: "frank@example.com", Username: "frank", Password: "secret"})
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "frank@example.com", Username: "frank", Password: "secretpassword"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
 
 	cmd := core.ChangeEmailCommand{
 		UserID:   res.User.ID,
-		Password: "secret",
+		Password: "secretpassword",
 		NewEmail: "frank+new@example.com",
 	}
 	if err := svc.InitiateEmailChange(ctx, cmd); err != nil {
@@ -153,7 +153,10 @@ func TestEmailChangeFlow(t *testing.T) {
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	res, _ := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "p"})
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "password123"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
 	token := deps.mailer.verificationTokens[0]
 	hash := security.HashToken(token)
 
@@ -165,7 +168,7 @@ func TestVerifyEmailExpired(t *testing.T) {
 		}
 	}
 
-	_, err := svc.VerifyEmail(ctx, core.VerifyEmailCommand{Token: token})
+	_, err = svc.VerifyEmail(ctx, core.VerifyEmailCommand{Token: token})
 	if !errors.Is(err, core.ErrTokenExpired) {
 		t.Fatalf("expected ErrTokenExpired, got %v", err)
 	}
@@ -179,7 +182,10 @@ func TestVerifyEmailExpired(t *testing.T) {
 func TestResetPasswordExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	res, _ := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "p"})
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "password123"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
 	svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "e@e.com"})
 	token := deps.mailer.resetTokens[0]
 	hash := security.HashToken(token)
@@ -192,7 +198,7 @@ func TestResetPasswordExpired(t *testing.T) {
 		}
 	}
 
-	_, err := svc.ResetPassword(ctx, core.ResetPasswordCommand{Token: token, NewPassword: "new"})
+	_, err = svc.ResetPassword(ctx, core.ResetPasswordCommand{Token: token, NewPassword: "new"})
 	if !errors.Is(err, core.ErrTokenExpired) {
 		t.Fatalf("expected ErrTokenExpired, got %v", err)
 	}
@@ -207,8 +213,8 @@ func TestResetPasswordExpired(t *testing.T) {
 func TestRegisterDuplicateEmail(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u1", Password: "p"})
-	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u2", Password: "p"})
+	svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u1", Password: "password123"})
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u2", Password: "password123"})
 	if !errors.Is(err, core.ErrEmailExists) {
 		t.Fatalf("expected ErrEmailExists, got %v", err)
 	}
@@ -217,8 +223,8 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 func TestRegisterDuplicateUsername(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "u", Password: "p"})
-	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "u", Password: "p"})
+	svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "u", Password: "password123"})
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "u", Password: "password123"})
 	if !errors.Is(err, core.ErrUsernameExists) {
 		t.Fatalf("expected ErrUsernameExists, got %v", err)
 	}

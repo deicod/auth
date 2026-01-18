@@ -20,6 +20,7 @@ type AuthService struct {
 	tokenGenerator TokenGenerator
 	sessionCfg     config.Session
 	tokenCfg       config.Tokens
+	passwordCfg    config.Password
 	mailer         email.Sender
 }
 
@@ -48,6 +49,11 @@ func New(deps Dependencies) (*AuthService, error) {
 		tokenCfg.EmailChangeTTL = defaults.EmailChangeTTL
 	}
 
+	passwordCfg := deps.PasswordCfg
+	if passwordCfg.MinLength <= 0 {
+		passwordCfg = config.DefaultPassword()
+	}
+
 	mailer := deps.Mailer
 	if mailer == nil {
 		mailer = email.NopSender{}
@@ -60,6 +66,7 @@ func New(deps Dependencies) (*AuthService, error) {
 		tokenGenerator: deps.TokenGenerator,
 		sessionCfg:     sessionCfg,
 		tokenCfg:       tokenCfg,
+		passwordCfg:    passwordCfg,
 		mailer:         mailer,
 	}
 	return svc, nil
@@ -75,8 +82,8 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 	if err := s.ensureUsernameAvailable(ctx, username); err != nil {
 		return core.AuthResult{}, err
 	}
-	if cmd.Password == "" {
-		return core.AuthResult{}, fmt.Errorf("%w: password is required", core.ErrInvalidInput)
+	if len(cmd.Password) < s.passwordCfg.MinLength {
+		return core.AuthResult{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
 	}
 
 	hashed, err := s.hasher.Hash(cmd.Password)
@@ -228,8 +235,8 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 	if time.Now().UTC().After(token.ExpiresAt) {
 		return core.UserPublic{}, core.ErrTokenExpired
 	}
-	if cmd.NewPassword == "" {
-		return core.UserPublic{}, fmt.Errorf("%w: password is required", core.ErrInvalidInput)
+	if len(cmd.NewPassword) < s.passwordCfg.MinLength {
+		return core.UserPublic{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
 	}
 
 	hashed, err := s.hasher.Hash(cmd.NewPassword)
