@@ -14,7 +14,8 @@ import (
 )
 
 type AuthHandlers struct {
-	svc authpkg.Service
+	svc            authpkg.Service
+	TrustedProxies []string
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
@@ -38,7 +39,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 			Username:  req.Username,
 			Password:  req.Password,
 			UserAgent: r.UserAgent(),
-			IP:        clientIP(r),
+			IP:        h.clientIP(r),
 		}
 
 		result, err := h.svc.Register(r.Context(), cmd)
@@ -65,7 +66,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 			Email:     req.Email,
 			Password:  req.Password,
 			UserAgent: r.UserAgent(),
-			IP:        clientIP(r),
+			IP:        h.clientIP(r),
 		}
 
 		result, err := h.svc.Login(r.Context(), cmd)
@@ -256,16 +257,35 @@ func writeJSONError(w http.ResponseWriter, status int, err error) {
 	respondJSON(w, status, errorResponse{Error: err.Error()})
 }
 
-func clientIP(r *http.Request) string {
-	// 🛡️ Sentinel: Trusting X-Forwarded-For/X-Real-IP without verifying the source
-	// allows IP spoofing. We default to RemoteAddr for security.
-	// If you are behind a trusted proxy, you must configure your server to trust it,
-	// but for now we enforce "secure by default" to prevent spoofing.
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
-		return host
+func (h *AuthHandlers) clientIP(r *http.Request) string {
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteIP = r.RemoteAddr
 	}
-	return r.RemoteAddr
+
+	// 🛡️ Sentinel: Only trust X-Forwarded-For if the request comes from a trusted proxy.
+	// This prevents IP spoofing while allowing legitimate proxy setups.
+	isTrusted := false
+	for _, trusted := range h.TrustedProxies {
+		if trusted == remoteIP {
+			isTrusted = true
+			break
+		}
+	}
+
+	if isTrusted {
+		if header := r.Header.Get("X-Forwarded-For"); header != "" {
+			parts := strings.Split(header, ",")
+			if ip := strings.TrimSpace(parts[0]); ip != "" {
+				return ip
+			}
+		}
+		if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
+			return header
+		}
+	}
+
+	return remoteIP
 }
 
 func bearerToken(header string) (string, bool) {
