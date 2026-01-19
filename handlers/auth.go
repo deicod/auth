@@ -257,15 +257,10 @@ func writeJSONError(w http.ResponseWriter, status int, err error) {
 }
 
 func clientIP(r *http.Request) string {
-	if header := r.Header.Get("X-Forwarded-For"); header != "" {
-		parts := strings.Split(header, ",")
-		if ip := strings.TrimSpace(parts[0]); ip != "" {
-			return ip
-		}
-	}
-	if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
-		return header
-	}
+	// 🛡️ Sentinel: Trusting X-Forwarded-For/X-Real-IP without verifying the source
+	// allows IP spoofing. We default to RemoteAddr for security.
+	// If you are behind a trusted proxy, you must configure your server to trust it,
+	// but for now we enforce "secure by default" to prevent spoofing.
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err == nil && host != "" {
 		return host
