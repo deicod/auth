@@ -14,7 +14,9 @@ import (
 )
 
 type AuthHandlers struct {
-	svc            authpkg.Service
+	svc authpkg.Service
+	// TrustedProxies is a list of IP addresses that are trusted to send X-Forwarded-For headers.
+	// If empty, no proxies are trusted and X-Forwarded-For headers are ignored.
 	TrustedProxies []string
 }
 
