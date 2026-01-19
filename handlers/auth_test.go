@@ -416,4 +416,49 @@ func TestConfirmEmailChangeHandler(t *testing.T) {
 	}
 }
 
+func TestClientIPResolution(t *testing.T) {
+	svc := &fakeService{registerRes: core.AuthResult{User: core.UserPublic{ID: "1"}}}
+	h := New(svc)
+
+	body := map[string]string{"email": "u@e.com", "username": "u", "password": "p"}
+	data, _ := json.Marshal(body)
+
+	// Case 1: Untrusted, Header present -> Ignore header
+	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(data))
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	req.RemoteAddr = "10.0.0.1:12345"
+
+	rr := httptest.NewRecorder()
+	h.Register().ServeHTTP(rr, req)
+
+	if svc.registerCmd.IP != "10.0.0.1" {
+		t.Errorf("Untrusted: expected IP 10.0.0.1, got %s", svc.registerCmd.IP)
+	}
+
+	// Case 2: Trusted, Header present -> Use header
+	h.TrustedProxies = []string{"10.0.0.1"}
+	req = httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(data))
+	req.Header.Set("X-Forwarded-For", "1.2.3.4")
+	req.RemoteAddr = "10.0.0.1:12345"
+
+	rr = httptest.NewRecorder()
+	h.Register().ServeHTTP(rr, req)
+
+	if svc.registerCmd.IP != "1.2.3.4" {
+		t.Errorf("Trusted: expected IP 1.2.3.4, got %s", svc.registerCmd.IP)
+	}
+
+	// Case 3: Trusted, Header list -> Use first
+	req = httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(data))
+	req.Header.Set("X-Forwarded-For", "5.6.7.8, 1.2.3.4")
+	req.RemoteAddr = "10.0.0.1:12345"
+
+	rr = httptest.NewRecorder()
+	h.Register().ServeHTTP(rr, req)
+
+	if svc.registerCmd.IP != "5.6.7.8" {
+		t.Errorf("Trusted list: expected IP 5.6.7.8, got %s", svc.registerCmd.IP)
+	}
+}
+
 var _ authpkg.Service = (*fakeService)(nil)

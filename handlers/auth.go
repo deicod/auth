@@ -14,7 +14,8 @@ import (
 )
 
 type AuthHandlers struct {
-	svc authpkg.Service
+	svc            authpkg.Service
+	TrustedProxies []string
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
@@ -38,7 +39,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 			Username:  req.Username,
 			Password:  req.Password,
 			UserAgent: r.UserAgent(),
-			IP:        clientIP(r),
+			IP:        h.clientIP(r),
 		}
 
 		result, err := h.svc.Register(r.Context(), cmd)
@@ -65,7 +66,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 			Email:     req.Email,
 			Password:  req.Password,
 			UserAgent: r.UserAgent(),
-			IP:        clientIP(r),
+			IP:        h.clientIP(r),
 		}
 
 		result, err := h.svc.Login(r.Context(), cmd)
@@ -256,21 +257,34 @@ func writeJSONError(w http.ResponseWriter, status int, err error) {
 	respondJSON(w, status, errorResponse{Error: err.Error()})
 }
 
-func clientIP(r *http.Request) string {
-	if header := r.Header.Get("X-Forwarded-For"); header != "" {
-		parts := strings.Split(header, ",")
-		if ip := strings.TrimSpace(parts[0]); ip != "" {
-			return ip
+func (h *AuthHandlers) clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+
+	// Only trust headers if the request comes from a trusted proxy
+	isTrusted := false
+	for _, trusted := range h.TrustedProxies {
+		if trusted == host {
+			isTrusted = true
+			break
 		}
 	}
-	if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
-		return header
+
+	if isTrusted {
+		if header := r.Header.Get("X-Forwarded-For"); header != "" {
+			parts := strings.Split(header, ",")
+			if ip := strings.TrimSpace(parts[0]); ip != "" {
+				return ip
+			}
+		}
+		if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
+			return header
+		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil && host != "" {
-		return host
-	}
-	return r.RemoteAddr
+
+	return host
 }
 
 func bearerToken(header string) (string, bool) {
