@@ -1,14 +1,15 @@
 package services
 
 import (
-    "context"
-    "errors"
-    "fmt"
-    "testing"
-    "time"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
 
-    "github.com/deicod/auth/core"
-    "github.com/deicod/auth/internal/security"
+	"github.com/deicod/auth/core"
+	"github.com/deicod/auth/internal/security"
 )
 
 func TestAuthServiceRegister(t *testing.T) {
@@ -153,7 +154,7 @@ func TestEmailChangeFlow(t *testing.T) {
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "password123"})
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user1", Password: "password123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -182,7 +183,7 @@ func TestVerifyEmailExpired(t *testing.T) {
 func TestResetPasswordExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
-	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "e", Password: "password123"})
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user1", Password: "password123"})
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -213,8 +214,8 @@ func TestResetPasswordExpired(t *testing.T) {
 func TestRegisterDuplicateEmail(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u1", Password: "password123"})
-	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "u2", Password: "password123"})
+	svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user1", Password: "password123"})
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user2", Password: "password123"})
 	if !errors.Is(err, core.ErrEmailExists) {
 		t.Fatalf("expected ErrEmailExists, got %v", err)
 	}
@@ -223,10 +224,75 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 func TestRegisterDuplicateUsername(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "u", Password: "password123"})
-	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "u", Password: "password123"})
+	svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "user1", Password: "password123"})
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "user1", Password: "password123"})
 	if !errors.Is(err, core.ErrUsernameExists) {
 		t.Fatalf("expected ErrUsernameExists, got %v", err)
+	}
+}
+
+func TestRegisterInvalidInput(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		email    string
+		username string
+		password string
+		errMsg   string
+	}{
+		{
+			name:     "invalid email format",
+			email:    "invalid-email",
+			username: "validUser",
+			password: "password123",
+			errMsg:   "invalid email format",
+		},
+		{
+			name:     "email with name",
+			email:    "Alice <alice@example.com>",
+			username: "validUser",
+			password: "password123",
+			errMsg:   "invalid email format",
+		},
+		{
+			name:     "short username",
+			email:    "valid@example.com",
+			username: "ab",
+			password: "password123",
+			errMsg:   "invalid username",
+		},
+		{
+			name:     "long username",
+			email:    "valid@example.com",
+			username: strings.Repeat("a", 31),
+			password: "password123",
+			errMsg:   "invalid username",
+		},
+		{
+			name:     "invalid username chars",
+			email:    "valid@example.com",
+			username: "user@name",
+			password: "password123",
+			errMsg:   "invalid username",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := svc.Register(ctx, core.RegisterCommand{
+				Email:    tc.email,
+				Username: tc.username,
+				Password: tc.password,
+			})
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.errMsg) {
+				t.Errorf("expected error containing %q, got %q", tc.errMsg, err.Error())
+			}
+		})
 	}
 }
 
