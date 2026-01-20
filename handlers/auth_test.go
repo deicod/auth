@@ -416,4 +416,76 @@ func TestConfirmEmailChangeHandler(t *testing.T) {
 	}
 }
 
+func TestClientIP(t *testing.T) {
+	tests := []struct {
+		name           string
+		remoteAddr     string
+		headerKey      string
+		headerVal      string
+		trustedProxies []string
+		wantIP         string
+	}{
+		{
+			name:       "UntrustedProxy_Default",
+			remoteAddr: "1.2.3.4:1234",
+			headerKey:  "X-Forwarded-For",
+			headerVal:  "5.6.7.8",
+			wantIP:     "1.2.3.4",
+		},
+		{
+			name:           "TrustedProxy_ExactMatch",
+			remoteAddr:     "1.2.3.4:1234",
+			headerKey:      "X-Forwarded-For",
+			headerVal:      "5.6.7.8",
+			trustedProxies: []string{"1.2.3.4"},
+			wantIP:         "5.6.7.8",
+		},
+		{
+			name:           "TrustedProxy_CIDRMatch",
+			remoteAddr:     "10.0.0.5:1234",
+			headerKey:      "X-Forwarded-For",
+			headerVal:      "5.6.7.8",
+			trustedProxies: []string{"10.0.0.0/8"},
+			wantIP:         "5.6.7.8",
+		},
+		{
+			name:           "UntrustedProxy_CIDRMismatch",
+			remoteAddr:     "192.168.1.1:1234",
+			headerKey:      "X-Forwarded-For",
+			headerVal:      "5.6.7.8",
+			trustedProxies: []string{"10.0.0.0/8"},
+			wantIP:         "192.168.1.1",
+		},
+		{
+			name:       "DirectConnection_NoHeaders",
+			remoteAddr: "1.2.3.4:1234",
+			wantIP:     "1.2.3.4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeService{}
+			h := New(svc)
+			h.TrustedProxies = tt.trustedProxies
+
+			body, _ := json.Marshal(map[string]string{
+				"email": "test@example.com", "username": "test", "password": "password",
+			})
+			req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(body))
+			req.RemoteAddr = tt.remoteAddr
+			if tt.headerKey != "" {
+				req.Header.Set(tt.headerKey, tt.headerVal)
+			}
+			rr := httptest.NewRecorder()
+
+			h.Register().ServeHTTP(rr, req)
+
+			if svc.registerCmd.IP != tt.wantIP {
+				t.Errorf("got IP %q, want %q", svc.registerCmd.IP, tt.wantIP)
+			}
+		})
+	}
+}
+
 var _ authpkg.Service = (*fakeService)(nil)
