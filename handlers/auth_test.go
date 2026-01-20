@@ -426,11 +426,19 @@ func TestClientIP(t *testing.T) {
 		wantIP         string
 	}{
 		{
-			name:       "UntrustedProxy_Default",
+			name:       "DefaultAllow_NoConfig",
 			remoteAddr: "1.2.3.4:1234",
 			headerKey:  "X-Forwarded-For",
 			headerVal:  "5.6.7.8",
-			wantIP:     "1.2.3.4",
+			wantIP:     "5.6.7.8",
+		},
+		{
+			name:           "TrustedProxy_ExplicitConfig_UntrustedSource",
+			remoteAddr:     "1.2.3.4:1234",
+			headerKey:      "X-Forwarded-For",
+			headerVal:      "5.6.7.8",
+			trustedProxies: []string{"9.9.9.9"}, // Doesn't match remoteAddr
+			wantIP:         "1.2.3.4",
 		},
 		{
 			name:           "TrustedProxy_ExactMatch",

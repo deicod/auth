@@ -16,7 +16,8 @@ import (
 type AuthHandlers struct {
 	svc authpkg.Service
 	// TrustedProxies is a list of trusted IP addresses or CIDR ranges.
-	// If empty, X-Forwarded-For and X-Real-IP headers are ignored.
+	// If empty, X-Forwarded-For and X-Real-IP headers are TRUSTED (default-allow).
+	// To secure the application, you must configure this list.
 	TrustedProxies []string
 }
 
@@ -266,16 +267,23 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	}
 
 	trusted := false
-	for _, proxy := range h.TrustedProxies {
-		if proxy == remoteIP {
-			trusted = true
-			break
-		}
-		_, ipNet, err := net.ParseCIDR(proxy)
-		if err == nil {
-			if ip := net.ParseIP(remoteIP); ip != nil && ipNet.Contains(ip) {
+	// If no trusted proxies are configured, we default to trusting headers (default-allow).
+	// This is necessary because in many environments (like K8s) we can't easily know the proxy IP.
+	// Users should configure TrustedProxies to enable IP validation.
+	if len(h.TrustedProxies) == 0 {
+		trusted = true
+	} else {
+		for _, proxy := range h.TrustedProxies {
+			if proxy == remoteIP {
 				trusted = true
 				break
+			}
+			_, ipNet, err := net.ParseCIDR(proxy)
+			if err == nil {
+				if ip := net.ParseIP(remoteIP); ip != nil && ipNet.Contains(ip) {
+					trusted = true
+					break
+				}
 			}
 		}
 	}
