@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
+	"regexp"
 	"strings"
 	"time"
 
@@ -74,7 +76,14 @@ func New(deps Dependencies) (*AuthService, error) {
 
 func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (core.AuthResult, error) {
 	email := normalizeEmail(cmd.Email)
+	if !isValidEmail(email) {
+		return core.AuthResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
+	}
+
 	username := strings.TrimSpace(cmd.Username)
+	if !isValidUsername(username) {
+		return core.AuthResult{}, fmt.Errorf("%w: invalid username (must be 3-30 chars, alphanumeric, underscore, or hyphen)", core.ErrInvalidInput)
+	}
 
 	if err := s.ensureEmailAvailable(ctx, email, ""); err != nil {
 		return core.AuthResult{}, err
@@ -481,4 +490,25 @@ func (s *AuthService) ensureUsernameAvailable(ctx context.Context, username stri
 
 func normalizeEmail(email string) string {
 	return strings.TrimSpace(strings.ToLower(email))
+}
+
+func isValidEmail(email string) bool {
+	// basic structure check
+	if !strings.Contains(email, "@") {
+		return false
+	}
+	// ParseAddress follows RFC 5322, which is generous.
+	// We want to ensure it parses correctly at minimum.
+	addr, err := mail.ParseAddress(email)
+	if err != nil {
+		return false
+	}
+	// Ensure the parsed address matches the input (disallow "Alice <alice@example.com>")
+	return addr.Address == email
+}
+
+var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
+
+func isValidUsername(username string) bool {
+	return usernameRegex.MatchString(username)
 }
