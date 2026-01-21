@@ -4,11 +4,11 @@ import "time"
 
 // Default configuration values.
 const (
-	DefaultSessionLength      = 30 * 24 * time.Hour
-	DefaultVerificationTTL    = 48 * time.Hour
-	DefaultResetTTL           = time.Hour
-	DefaultEmailChangeTTL     = 24 * time.Hour
-	DefaultOperationTimeout   = 30 * time.Second
+	DefaultSessionLength    = 30 * 24 * time.Hour
+	DefaultVerificationTTL  = 48 * time.Hour
+	DefaultResetTTL         = time.Hour
+	DefaultEmailChangeTTL   = 24 * time.Hour
+	DefaultOperationTimeout = 30 * time.Second
 )
 
 // Config holds SQLite database configuration options.

@@ -24,6 +24,7 @@ type AuthService struct {
 	tokenCfg       config.Tokens
 	passwordCfg    config.Password
 	mailer         email.Sender
+	dummyHash      string
 }
 
 func New(deps Dependencies) (*AuthService, error) {
@@ -61,6 +62,12 @@ func New(deps Dependencies) (*AuthService, error) {
 		mailer = email.NopSender{}
 	}
 
+	// Generate a dummy hash for timing attack protection
+	dummy, err := deps.Hasher.Hash("dummy_password_for_timing_protection")
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate dummy hash: %w", err)
+	}
+
 	svc := &AuthService{
 		stores:         deps.Stores,
 		hasher:         deps.Hasher,
@@ -70,6 +77,7 @@ func New(deps Dependencies) (*AuthService, error) {
 		tokenCfg:       tokenCfg,
 		passwordCfg:    passwordCfg,
 		mailer:         mailer,
+		dummyHash:      dummy,
 	}
 	return svc, nil
 }
@@ -145,6 +153,8 @@ func (s *AuthService) Login(ctx context.Context, cmd core.LoginCommand) (core.Au
 	user, err := s.stores.Users.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, core.ErrUserNotFound) {
+			// Simulate password verification to prevent timing attacks (username enumeration)
+			_ = s.hasher.Verify(s.dummyHash, cmd.Password)
 			return core.AuthResult{}, core.ErrInvalidCredentials
 		}
 		return core.AuthResult{}, err

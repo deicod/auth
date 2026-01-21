@@ -3,13 +3,13 @@ package pgx
 import "time"
 
 type Config struct {
-	DSN                  string
-	MaxConns             int32
-	MinConns             int32
-	HealthCheckInterval  time.Duration
-	MaxConnLifetime      time.Duration
-	MaxConnIdleTime      time.Duration
-	OperationTimeout     time.Duration
+	DSN                 string
+	MaxConns            int32
+	MinConns            int32
+	HealthCheckInterval time.Duration
+	MaxConnLifetime     time.Duration
+	MaxConnIdleTime     time.Duration
+	OperationTimeout    time.Duration
 }
 
 func DefaultConfig() Config {
