@@ -13,6 +13,8 @@ import (
 	"github.com/deicod/auth/core"
 )
 
+const maxBodySize = 1048576 // 1MB
+
 type AuthHandlers struct {
 	svc authpkg.Service
 	// TrustedProxies is a list of trusted IP addresses or CIDR ranges.
@@ -232,6 +234,8 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func decodeJSON(r *http.Request, dst interface{}) error {
+	// Limit request body to 1MB to prevent DoS
+	r.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
 	defer r.Body.Close()
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
