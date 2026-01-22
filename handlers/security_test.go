@@ -15,7 +15,7 @@ func TestLargeBodyRejection(t *testing.T) {
 
 	// Create a body larger than 1MB (1048576 bytes)
 	// We use a valid field "password" to avoid "unknown field" error before the size check
-	largePassword := strings.Repeat("a", 1048576+100)
+	largePassword := strings.Repeat("a", int(maxBodySize)+100)
 	body := map[string]string{
 		"email":    "u@example.com",
 		"password": largePassword,
