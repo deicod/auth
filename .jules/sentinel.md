@@ -12,3 +12,8 @@
 **Vulnerability:** The JSON decoder used in `AuthHandlers` read the entire request body without a size limit. This allowed an attacker to send massive payloads (e.g., infinite streams or large blobs), potentially exhausting server memory and causing a Denial of Service.
 **Learning:** `json.NewDecoder(r.Body).Decode(&dst)` does NOT automatically limit input size. While some web frameworks handle this, standard Go `http.Handler`s rely on the developer to wrap `r.Body` with `http.MaxBytesReader`.
 **Prevention:** I wrapped the request body in `decodeJSON` with `http.MaxBytesReader` and enforced a strict 1MB limit. This ensures the connection is closed if the payload exceeds the threshold, protecting the application resources.
+
+## 2026-01-23 - DoS via CPU Exhaustion (Long Passwords)
+**Vulnerability:** The `Register` and `Login` flows accepted passwords of arbitrary length (up to the 1MB body limit). Hashing extremely long passwords (e.g., 500KB) with Argon2 is computationally expensive, allowing an attacker to exhaust server CPU resources by sending a few requests with massive passwords.
+**Learning:** Even if the request body size is limited, specific fields (like passwords processed by expensive algorithms) need tighter bounds. Standard library validations (like `mail.ParseAddress`) may not enforce strict length limits suitable for all contexts.
+**Prevention:** I introduced explicit length limits for passwords (`maxPasswordLength = 1024`) and emails (`maxEmailLength = 254`) in the `AuthService`. These checks run before any expensive operations (like hashing or database lookups), allowing the server to reject malicious requests cheaply.

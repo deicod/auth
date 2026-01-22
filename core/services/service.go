@@ -27,6 +27,11 @@ type AuthService struct {
 	dummyHash      string
 }
 
+const (
+	maxPasswordLength = 1024
+	maxEmailLength    = 254
+)
+
 func New(deps Dependencies) (*AuthService, error) {
 	if deps.Stores.Users == nil || deps.Stores.Sessions == nil || deps.Stores.Verifications == nil || deps.Stores.PasswordResets == nil || deps.Stores.EmailChanges == nil {
 		return nil, errors.New("all stores are required")
@@ -83,6 +88,9 @@ func New(deps Dependencies) (*AuthService, error) {
 }
 
 func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (core.AuthResult, error) {
+	if len(cmd.Email) > maxEmailLength {
+		return core.AuthResult{}, fmt.Errorf("%w: email too long", core.ErrInvalidInput)
+	}
 	email := normalizeEmail(cmd.Email)
 	if !isValidEmail(email) {
 		return core.AuthResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
@@ -98,6 +106,9 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 	}
 	if err := s.ensureUsernameAvailable(ctx, username); err != nil {
 		return core.AuthResult{}, err
+	}
+	if len(cmd.Password) > maxPasswordLength {
+		return core.AuthResult{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
 	}
 	if len(cmd.Password) < s.passwordCfg.MinLength {
 		return core.AuthResult{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
@@ -149,6 +160,10 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 }
 
 func (s *AuthService) Login(ctx context.Context, cmd core.LoginCommand) (core.AuthResult, error) {
+	if len(cmd.Password) > maxPasswordLength {
+		return core.AuthResult{}, core.ErrInvalidCredentials
+	}
+
 	email := normalizeEmail(cmd.Email)
 	user, err := s.stores.Users.FindByEmail(ctx, email)
 	if err != nil {
@@ -254,6 +269,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 	if time.Now().UTC().After(token.ExpiresAt) {
 		return core.UserPublic{}, core.ErrTokenExpired
 	}
+	if len(cmd.NewPassword) > maxPasswordLength {
+		return core.UserPublic{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
+	}
 	if len(cmd.NewPassword) < s.passwordCfg.MinLength {
 		return core.UserPublic{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
 	}
@@ -290,10 +308,16 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 		return err
 	}
 
+	if len(cmd.Password) > maxPasswordLength {
+		return core.ErrInvalidCredentials
+	}
 	if err := s.hasher.Verify(user.PasswordHash, cmd.Password); err != nil {
 		return core.ErrInvalidCredentials
 	}
 
+	if len(cmd.NewEmail) > maxEmailLength {
+		return fmt.Errorf("%w: email too long", core.ErrInvalidInput)
+	}
 	newEmail := normalizeEmail(cmd.NewEmail)
 	if err := s.ensureEmailAvailable(ctx, newEmail, user.ID); err != nil {
 		return err
