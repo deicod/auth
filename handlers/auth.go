@@ -232,6 +232,8 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func decodeJSON(r *http.Request, dst interface{}) error {
+	// Limit request body to 1MB to prevent DoS
+	r.Body = http.MaxBytesReader(nil, r.Body, 1048576)
 	defer r.Body.Close()
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
