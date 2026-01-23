@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"net"
 	"net/http"
+	"strings"
 )
 
 // SecurityHeaders adds standard security headers to the response.
@@ -24,9 +26,21 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		// Control referrer information
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		// Enforce HTTPS
-		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		// Enforce HTTPS, but skip on localhost to avoid locking dev environments
+		if !isLocalhost(r.Host) {
+			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isLocalhost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	// Strip brackets from IPv6 literals if present (e.g. "[::1]" -> "::1")
+	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	host = strings.ToLower(strings.TrimSpace(host))
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }

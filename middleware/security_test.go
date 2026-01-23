@@ -15,7 +15,7 @@ func TestSecurityHeaders(t *testing.T) {
 	// Wrap the handler with the SecurityHeaders middleware
 	handler := SecurityHeaders(nextHandler)
 
-	// Create a test request
+	// Create a test request with a non-localhost host
 	req := httptest.NewRequest("GET", "http://example.com/foo", nil)
 	w := httptest.NewRecorder()
 
@@ -40,5 +40,39 @@ func TestSecurityHeaders(t *testing.T) {
 	// Ensure CSP is NOT set (as we removed it)
 	if value := w.Header().Get("Content-Security-Policy"); value != "" {
 		t.Errorf("Expected Content-Security-Policy to be empty, but got %q", value)
+	}
+}
+
+func TestSecurityHeaders_Localhost(t *testing.T) {
+	// Create a simple handler that the middleware will wrap
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// Wrap the handler with the SecurityHeaders middleware
+	handler := SecurityHeaders(nextHandler)
+
+	// Test cases for localhost addresses
+	localhosts := []string{
+		"http://localhost:8080/foo",
+		"http://127.0.0.1/foo",
+		"http://[::1]/foo",
+	}
+
+	for _, url := range localhosts {
+		req := httptest.NewRequest("GET", url, nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		// HSTS should be MISSING for localhost
+		if value := w.Header().Get("Strict-Transport-Security"); value != "" {
+			t.Errorf("Expected Strict-Transport-Security to be empty for %s, but got %q", url, value)
+		}
+
+		// Other headers should still be present
+		if value := w.Header().Get("X-Frame-Options"); value != "DENY" {
+			t.Errorf("Expected X-Frame-Options to be DENY for %s, but got %q", url, value)
+		}
 	}
 }
