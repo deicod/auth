@@ -22,3 +22,8 @@
 **Vulnerability:** The `ForgotPassword` flow sent emails synchronously. When a user existed, the server connected to the SMTP server (slow), creating a significant timing difference compared to when a user did not exist (fast).
 **Learning:** Network operations (like SMTP) are inherently slow and variable. Even if DB lookups are masked, synchronous external calls leak information about the internal state (e.g., "we are sending an email, so the user exists").
 **Prevention:** I moved the email sending logic in `ForgotPassword` to a background goroutine. This ensures the HTTP handler returns immediately in both cases (Found/Not Found), eliminating the network latency side channel.
+
+## 2026-01-25 - HSTS Lockout on Localhost
+**Vulnerability:** Blindly enabling Strict-Transport-Security (HSTS) with a long `max-age` (2 years) on all responses caused local development environments (accessed via `http://localhost`) to break. If a developer ran the app once, their browser would cache the HSTS policy and force HTTPS for `localhost` for 2 years, often locking them out of other local HTTP-only projects.
+**Learning:** Security headers like HSTS are critical for production but harmful in non-secure development contexts. Middleware must be "environment-aware" or context-sensitive to avoid damaging the developer experience.
+**Prevention:** I added a check in the `SecurityHeaders` middleware to inspect the `Host` header. If the host is `localhost`, `127.0.0.1`, or `::1`, the HSTS header is suppressed. This preserves security for production domains while keeping local development frictionless.
