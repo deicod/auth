@@ -76,6 +76,14 @@ func TestResetPasswordRevokesAllSessions(t *testing.T) {
 	if err := svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "dave@example.com"}); err != nil {
 		t.Fatalf("forgot password failed: %v", err)
 	}
+
+	// Wait for async email
+	select {
+	case <-deps.mailer.notifyReset:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for password reset email")
+	}
+
 	if len(deps.mailer.resetTokens) == 0 {
 		t.Fatalf("expected reset token to be sent")
 	}
@@ -188,6 +196,14 @@ func TestResetPasswordExpired(t *testing.T) {
 		t.Fatalf("register failed: %v", err)
 	}
 	svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "e@e.com"})
+
+	// Wait for async email
+	select {
+	case <-deps.mailer.notifyReset:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for password reset email")
+	}
+
 	token := deps.mailer.resetTokens[0]
 	hash := security.HashToken(token)
 
@@ -315,7 +331,7 @@ func newTestService(t *testing.T) (*AuthService, *testDeps) {
 		verifications: newMemVerificationStore(),
 		resets:        newMemPasswordResetStore(),
 		changes:       newMemEmailChangeStore(),
-		mailer:        &captureMailer{},
+		mailer:        &captureMailer{notifyReset: make(chan struct{}, 1)},
 	}
 
 	svc, err := New(Dependencies{
@@ -367,6 +383,7 @@ type captureMailer struct {
 	verificationTokens []string
 	resetTokens        []string
 	emailChangeTokens  []string
+	notifyReset        chan struct{}
 }
 
 func (c *captureMailer) SendVerification(_ context.Context, _ core.User, token string) error {
@@ -376,6 +393,12 @@ func (c *captureMailer) SendVerification(_ context.Context, _ core.User, token s
 
 func (c *captureMailer) SendPasswordReset(_ context.Context, _ core.User, token string) error {
 	c.resetTokens = append(c.resetTokens, token)
+	if c.notifyReset != nil {
+		select {
+		case c.notifyReset <- struct{}{}:
+		default:
+		}
+	}
 	return nil
 }
 

@@ -250,7 +250,13 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 	if err != nil {
 		return err
 	}
-	return s.mailer.SendPasswordReset(ctx, user, token)
+
+	// Send email asynchronously to prevent timing attacks (username enumeration)
+	go func() {
+		_ = s.mailer.SendPasswordReset(context.Background(), user, token)
+	}()
+
+	return nil
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordCommand) (core.UserPublic, error) {

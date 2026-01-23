@@ -17,3 +17,8 @@
 **Vulnerability:** The `Register` and `Login` flows accepted passwords of arbitrary length (up to the 1MB body limit). Hashing extremely long passwords (e.g., 500KB) with Argon2 is computationally expensive, allowing an attacker to exhaust server CPU resources by sending a few requests with massive passwords.
 **Learning:** Even if the request body size is limited, specific fields (like passwords processed by expensive algorithms) need tighter bounds. Standard library validations (like `mail.ParseAddress`) may not enforce strict length limits suitable for all contexts.
 **Prevention:** I introduced explicit length limits for passwords (`maxPasswordLength = 1024`) and emails (`maxEmailLength = 254`) in the `AuthService`. These checks run before any expensive operations (like hashing or database lookups), allowing the server to reject malicious requests cheaply.
+
+## 2026-01-24 - Username Enumeration via Email Timing
+**Vulnerability:** The `ForgotPassword` flow sent emails synchronously. When a user existed, the server connected to the SMTP server (slow), creating a significant timing difference compared to when a user did not exist (fast).
+**Learning:** Network operations (like SMTP) are inherently slow and variable. Even if DB lookups are masked, synchronous external calls leak information about the internal state (e.g., "we are sending an email, so the user exists").
+**Prevention:** I moved the email sending logic in `ForgotPassword` to a background goroutine. This ensures the HTTP handler returns immediately in both cases (Found/Not Found), eliminating the network latency side channel.
