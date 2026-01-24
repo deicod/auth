@@ -333,3 +333,47 @@ func TestUserRepository_DuplicateUsername(t *testing.T) {
 		t.Fatal("expected error for duplicate username")
 	}
 }
+
+func TestUserRepository_UpdateFields_Injection(t *testing.T) {
+	db := testDB(t)
+	repo := NewUserRepository(db, 5*time.Second)
+	ctx := context.Background()
+
+	victim, _ := repo.Create(ctx, CreateUserParams{
+		Email:        "victim@example.com",
+		Username:     "victim",
+		PasswordHash: "hash",
+		Role:         "user",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	})
+
+	attacker, _ := repo.Create(ctx, CreateUserParams{
+		Email:        "attacker@example.com",
+		Username:     "attacker",
+		PasswordHash: "hash",
+		Role:         "user",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	})
+
+	// Inject SQL: "role = 'admin' --"
+	// Query becomes: UPDATE users SET role = 'admin' -- = ? WHERE id = ?
+	// This sets role='admin' for ALL rows because WHERE is commented out.
+	err := repo.UpdateFields(ctx, attacker.ID, map[string]interface{}{
+		"role = 'admin' --": true,
+	})
+
+	// Before fix, this might succeed or fail depending on DB quirks, but if it succeeds, it's bad.
+	// If it fails with "no such column" that's also fine, but we want to ensure we prevent it explicitly.
+	// Actually, SQLite executes this.
+
+	if err == nil {
+		t.Fatal("expected error for invalid column injection, got nil")
+	}
+
+	updatedVictim, _ := repo.FindByID(ctx, victim.ID)
+	if updatedVictim.Role == "admin" {
+		t.Fatal("SQL Injection successful! Victim role changed to admin.")
+	}
+}

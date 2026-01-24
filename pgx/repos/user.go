@@ -108,6 +108,12 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields 
 	args := make([]interface{}, 0, len(fields)+1)
 	idx := 1
 	for column, value := range fields {
+		switch column {
+		case "email", "username", "password_hash", "role", "is_verified", "created_at", "updated_at", "verified_at", "last_login_at":
+		default:
+			return fmt.Errorf("invalid column: %s", column)
+		}
+
 		setParts = append(setParts, fmt.Sprintf("%s=$%d", column, idx))
 		args = append(args, value)
 		idx++

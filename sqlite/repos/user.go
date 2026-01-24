@@ -155,6 +155,12 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id string, fields map
 	args := make([]interface{}, 0, len(fields)+1)
 
 	for column, value := range fields {
+		switch column {
+		case "email", "username", "password_hash", "role", "is_verified", "created_at", "updated_at", "verified_at", "last_login_at":
+		default:
+			return fmt.Errorf("invalid column: %s", column)
+		}
+
 		setParts = append(setParts, fmt.Sprintf("%s = ?", column))
 		// Convert time.Time to string for SQLite storage
 		switch v := value.(type) {
