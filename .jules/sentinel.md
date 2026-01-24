@@ -32,3 +32,8 @@
 **Vulnerability:** The `UpdateFields` method in `pgx` and `sqlite` repositories constructed `UPDATE` queries by directly interpolating map keys from the input `fields` map. If a caller passed user-controlled keys, an attacker could inject arbitrary SQL (e.g., commenting out the `WHERE` clause), potentially bypassing authorization or modifying unrelated data.
 **Learning:** Building SQL queries dynamically from maps requires strict validation of keys. Relying on the service layer to "only pass safe keys" is fragile (defense in depth violation) because future refactors or new call sites might accidentally pass user input.
 **Prevention:** I implemented an allowlist validation in `UpdateFields` to ensure only known-safe column names (`email`, `role`, etc.) are allowed, rejecting any unknown keys with an error.
+
+## 2026-01-27 - Incomplete Async Forgot Password
+**Vulnerability:** The `ForgotPassword` flow was intended to be async to prevent timing attacks, but the `issuePasswordReset` DB write was still synchronous. This allowed an attacker to distinguish valid emails by the latency of the DB insert (~10ms+) versus immediate return.
+**Learning:** When making a flow asynchronous to hide side channels, *all* data-dependent operations (DB writes, external calls) must be moved to the async block. A single synchronous write before the async block defeats the protection.
+**Prevention:** Moved the token generation and DB insertion into the background goroutine in `ForgotPassword`.
