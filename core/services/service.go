@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -246,14 +247,23 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 		return err
 	}
 
-	token, err := s.issuePasswordReset(ctx, user)
-	if err != nil {
-		return err
-	}
-
-	// Send email asynchronously to prevent timing attacks (username enumeration)
+	// Generate token and send email asynchronously to prevent timing attacks (username enumeration).
+	// We must move BOTH the DB write and the email sending to the background goroutine.
+	// If the DB write remains synchronous, an attacker can distinguish "User Found" (slow DB write)
+	// from "User Not Found" (fast return) by measuring response latency.
 	go func() {
-		_ = s.mailer.SendPasswordReset(context.Background(), user, token)
+		// Use a detached context for the background operation
+		ctx := context.Background()
+
+		token, err := s.issuePasswordReset(ctx, user)
+		if err != nil {
+			log.Printf("failed to issue password reset token for user %s: %v", user.ID, err)
+			return
+		}
+
+		if err := s.mailer.SendPasswordReset(ctx, user, token); err != nil {
+			log.Printf("failed to send password reset email to user %s: %v", user.ID, err)
+		}
 	}()
 
 	return nil

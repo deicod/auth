@@ -66,3 +66,55 @@ func TestForgotPasswordTiming(t *testing.T) {
 		t.Errorf("Expected duration < 20ms (async), got %v", duration)
 	}
 }
+
+type slowResetStore struct {
+	*memPasswordResetStore
+}
+
+func (s *slowResetStore) Create(ctx context.Context, params CreatePasswordResetParams) (core.PasswordResetToken, error) {
+	time.Sleep(50 * time.Millisecond)
+	return s.memPasswordResetStore.Create(ctx, params)
+}
+
+func TestForgotPasswordTiming_SlowDB(t *testing.T) {
+	svc, deps := newTestService(t)
+	// Replace the resets store with a slow one
+	slow := &slowResetStore{memPasswordResetStore: deps.resets}
+
+	var err error
+	svc, err = New(Dependencies{
+		Stores: Stores{
+			Users:          deps.users,
+			Sessions:       deps.sessions,
+			Verifications:  deps.verifications,
+			PasswordResets: slow,
+			EmailChanges:   deps.changes,
+		},
+		Hasher:         fakeHasher{},
+		SessionTokens:  newFixedTokenGenerator("sess"),
+		TokenGenerator: newFixedTokenGenerator("tok"),
+		Mailer:         deps.mailer,
+	})
+	if err != nil {
+		t.Fatalf("failed to create service: %v", err)
+	}
+
+	ctx := context.Background()
+	_, err = svc.Register(ctx, core.RegisterCommand{Email: "timing_db@example.com", Username: "timing_db", Password: "password123"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+
+	start := time.Now()
+	err = svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "timing_db@example.com"})
+	if err != nil {
+		t.Fatalf("forgot password failed: %v", err)
+	}
+	duration := time.Since(start)
+
+	// If the DB write is synchronous, this will take > 50ms.
+	// We want it to be async, so < 20ms.
+	if duration > 20*time.Millisecond {
+		t.Errorf("Expected duration < 20ms (async DB), got %v", duration)
+	}
+}
