@@ -27,3 +27,8 @@
 **Vulnerability:** Blindly enabling Strict-Transport-Security (HSTS) with a long `max-age` (2 years) on all responses caused local development environments (accessed via `http://localhost`) to break. If a developer ran the app once, their browser would cache the HSTS policy and force HTTPS for `localhost` for 2 years, often locking them out of other local HTTP-only projects.
 **Learning:** Security headers like HSTS are critical for production but harmful in non-secure development contexts. Middleware must be "environment-aware" or context-sensitive to avoid damaging the developer experience.
 **Prevention:** I added a check in the `SecurityHeaders` middleware to inspect the `Host` header. If the host is `localhost`, `127.0.0.1`, or `::1`, the HSTS header is suppressed. This preserves security for production domains while keeping local development frictionless.
+
+## 2026-01-26 - SQL Injection via UpdateFields Map Keys
+**Vulnerability:** The `UpdateFields` method in `pgx` and `sqlite` repositories constructed `UPDATE` queries by directly interpolating map keys from the input `fields` map. If a caller passed user-controlled keys, an attacker could inject arbitrary SQL (e.g., commenting out the `WHERE` clause), potentially bypassing authorization or modifying unrelated data.
+**Learning:** Building SQL queries dynamically from maps requires strict validation of keys. Relying on the service layer to "only pass safe keys" is fragile (defense in depth violation) because future refactors or new call sites might accidentally pass user input.
+**Prevention:** I implemented an allowlist validation in `UpdateFields` to ensure only known-safe column names (`email`, `role`, etc.) are allowed, rejecting any unknown keys with an error.
