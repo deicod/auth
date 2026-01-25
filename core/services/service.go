@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
@@ -108,11 +109,9 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 	if err := s.ensureUsernameAvailable(ctx, username); err != nil {
 		return core.AuthResult{}, err
 	}
-	if len(cmd.Password) > maxPasswordLength {
-		return core.AuthResult{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
-	}
-	if len(cmd.Password) < s.passwordCfg.MinLength {
-		return core.AuthResult{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
+
+	if err := validatePassword(cmd.Password, s.passwordCfg); err != nil {
+		return core.AuthResult{}, err
 	}
 
 	hashed, err := s.hasher.Hash(cmd.Password)
@@ -285,11 +284,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 	if time.Now().UTC().After(token.ExpiresAt) {
 		return core.UserPublic{}, core.ErrTokenExpired
 	}
-	if len(cmd.NewPassword) > maxPasswordLength {
-		return core.UserPublic{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
-	}
-	if len(cmd.NewPassword) < s.passwordCfg.MinLength {
-		return core.UserPublic{}, fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, s.passwordCfg.MinLength)
+
+	if err := validatePassword(cmd.NewPassword, s.passwordCfg); err != nil {
+		return core.UserPublic{}, err
 	}
 
 	hashed, err := s.hasher.Hash(cmd.NewPassword)
@@ -561,4 +558,51 @@ var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
 
 func isValidUsername(username string) bool {
 	return usernameRegex.MatchString(username)
+}
+
+func validatePassword(password string, cfg config.Password) error {
+	if len(password) > maxPasswordLength {
+		return fmt.Errorf("%w: password too long", core.ErrInvalidInput)
+	}
+	if len(password) < cfg.MinLength {
+		return fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, cfg.MinLength)
+	}
+
+	if !cfg.RequireUppercase && !cfg.RequireLowercase && !cfg.RequireNumber && !cfg.RequireSpecial {
+		return nil
+	}
+
+	var (
+		hasUpper   bool
+		hasLower   bool
+		hasNumber  bool
+		hasSpecial bool
+	)
+
+	for _, r := range password {
+		if unicode.IsUpper(r) {
+			hasUpper = true
+		} else if unicode.IsLower(r) {
+			hasLower = true
+		} else if unicode.IsDigit(r) {
+			hasNumber = true
+		} else if unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			hasSpecial = true
+		}
+	}
+
+	if cfg.RequireUppercase && !hasUpper {
+		return fmt.Errorf("%w: password must contain at least one uppercase letter", core.ErrInvalidInput)
+	}
+	if cfg.RequireLowercase && !hasLower {
+		return fmt.Errorf("%w: password must contain at least one lowercase letter", core.ErrInvalidInput)
+	}
+	if cfg.RequireNumber && !hasNumber {
+		return fmt.Errorf("%w: password must contain at least one number", core.ErrInvalidInput)
+	}
+	if cfg.RequireSpecial && !hasSpecial {
+		return fmt.Errorf("%w: password must contain at least one special character", core.ErrInvalidInput)
+	}
+
+	return nil
 }

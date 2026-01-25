@@ -20,7 +20,11 @@ type Argon2 struct {
 }
 
 type Password struct {
-	MinLength int
+	MinLength        int
+	RequireUppercase bool
+	RequireLowercase bool
+	RequireNumber    bool
+	RequireSpecial   bool
 }
 
 func DefaultSession() Session {
@@ -45,5 +49,11 @@ func DefaultArgon2() Argon2 {
 }
 
 func DefaultPassword() Password {
-	return Password{MinLength: 8}
+	return Password{
+		MinLength:        8,
+		RequireUppercase: false,
+		RequireLowercase: false,
+		RequireNumber:    false,
+		RequireSpecial:   false,
+	}
 }
