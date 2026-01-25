@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/security"
 )
@@ -309,6 +310,58 @@ func TestRegisterInvalidInput(t *testing.T) {
 				t.Errorf("expected error containing %q, got %q", tc.errMsg, err.Error())
 			}
 		})
+	}
+}
+
+func TestRegisterPasswordComplexity(t *testing.T) {
+	svc, _ := newTestService(t)
+	// Update config to be strict
+	svc.passwordCfg = config.Password{
+		Validation:       true,
+		MinLength:        8,
+		RequireUppercase: true,
+		RequireLowercase: true,
+		RequireNumber:    true,
+		RequireSpecial:   true,
+	}
+	ctx := context.Background()
+
+	// Weak password (missing number, special, upper)
+	_, err := svc.Register(ctx, core.RegisterCommand{
+		Email:     "Alice@Example.com",
+		Username:  "alice",
+		Password:  "weakpassword",
+		UserAgent: "cli",
+		IP:        "127.0.0.1",
+	})
+	if err == nil {
+		t.Fatalf("expected error for weak password, got nil")
+	}
+
+	// Compliant password
+	_, err = svc.Register(ctx, core.RegisterCommand{
+		Email:     "Bob@Example.com",
+		Username:  "bob",
+		Password:  "StrongP@ss1",
+		UserAgent: "cli",
+		IP:        "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected success for strong password, got: %v", err)
+	}
+
+	// Disable validation
+	svc.passwordCfg.Validation = false
+	// Weak password should now succeed
+	_, err = svc.Register(ctx, core.RegisterCommand{
+		Email:     "Charlie@Example.com",
+		Username:  "charlie",
+		Password:  "weak",
+		UserAgent: "cli",
+		IP:        "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected success when validation disabled, got: %v", err)
 	}
 }
 

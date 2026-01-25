@@ -42,3 +42,8 @@
 **Vulnerability:** The API returned JSON responses containing sensitive data (session tokens, PII) without `Cache-Control` headers. Browsers or intermediate proxies could cache these responses, allowing an attacker with access to the same machine or network to retrieve them (e.g., via history or disk cache).
 **Learning:** By default, browsers may cache GET responses (like `/auth/me`) or even some POST responses depending on heuristics. APIs serving sensitive authentication state must explicitly disable caching.
 **Prevention:** I modified the `respondJSON` helper to inject `Cache-Control: no-store` and `Pragma: no-cache` on all JSON responses. This ensures that sensitive data is never stored by the client or intermediaries.
+
+## 2026-01-28 - Weak Password Policy Configuration
+**Vulnerability:** The application accepted any password that met the minimum length requirement (8 chars), allowing weak passwords like "password", "12345678", etc. There was no mechanism to enforce complexity.
+**Learning:** Defaulting to "minimal friction" (only length check) is common for libraries, but security-critical applications need the *option* to enforce stronger policies. Hardcoding checks or leaving it entirely to the user (validation before calling Register) leads to inconsistent enforcement.
+**Prevention:** Enhanced `config.Password` with boolean flags (`RequireUppercase`, etc.) and implemented a centralized `validatePassword` helper in the service layer. This ensures that if the policy is enabled, it is enforced consistently across all password-setting flows (Register, ResetPassword).
