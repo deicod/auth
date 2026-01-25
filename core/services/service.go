@@ -564,6 +564,11 @@ func validatePassword(password string, cfg config.Password) error {
 	if len(password) > maxPasswordLength {
 		return fmt.Errorf("%w: password too long", core.ErrInvalidInput)
 	}
+
+	if !cfg.Validation {
+		return nil
+	}
+
 	if len(password) < cfg.MinLength {
 		return fmt.Errorf("%w: password must be at least %d characters", core.ErrInvalidInput, cfg.MinLength)
 	}

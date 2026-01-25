@@ -317,6 +317,7 @@ func TestRegisterPasswordComplexity(t *testing.T) {
 	svc, _ := newTestService(t)
 	// Update config to be strict
 	svc.passwordCfg = config.Password{
+		Validation:       true,
 		MinLength:        8,
 		RequireUppercase: true,
 		RequireLowercase: true,
@@ -347,6 +348,20 @@ func TestRegisterPasswordComplexity(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("expected success for strong password, got: %v", err)
+	}
+
+	// Disable validation
+	svc.passwordCfg.Validation = false
+	// Weak password should now succeed
+	_, err = svc.Register(ctx, core.RegisterCommand{
+		Email:     "Charlie@Example.com",
+		Username:  "charlie",
+		Password:  "weak",
+		UserAgent: "cli",
+		IP:        "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("expected success when validation disabled, got: %v", err)
 	}
 }
 

@@ -20,6 +20,7 @@ type Argon2 struct {
 }
 
 type Password struct {
+	Validation       bool
 	MinLength        int
 	RequireUppercase bool
 	RequireLowercase bool
@@ -50,6 +51,7 @@ func DefaultArgon2() Argon2 {
 
 func DefaultPassword() Password {
 	return Password{
+		Validation:       true,
 		MinLength:        8,
 		RequireUppercase: false,
 		RequireLowercase: false,
