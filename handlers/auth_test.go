@@ -497,3 +497,27 @@ func TestClientIP(t *testing.T) {
 }
 
 var _ authpkg.Service = (*fakeService)(nil)
+
+func TestCacheControlHeaders(t *testing.T) {
+	svc := &fakeService{}
+	h := New(svc)
+
+	// Create a dummy request to an endpoint that uses respondJSON
+	// We use valid JSON to ensure it reaches respondJSON (invalid JSON hits writeJSONError which also uses respondJSON, but let's be clean)
+	body := `{"email":"test@example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/forgot", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+
+	h.ForgotPassword().ServeHTTP(rr, req)
+
+	// The handler calls writeJSONError on bad input or valid response on success.
+	// In fakeService, ForgotPassword returns nil error (success).
+	// So it should call respondJSON.
+
+	if val := rr.Header().Get("Cache-Control"); val != "no-store" {
+		t.Errorf("expected Cache-Control: no-store, got %q", val)
+	}
+	if val := rr.Header().Get("Pragma"); val != "no-cache" {
+		t.Errorf("expected Pragma: no-cache, got %q", val)
+	}
+}

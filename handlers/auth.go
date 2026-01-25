@@ -250,6 +250,9 @@ func decodeJSON(r *http.Request, dst interface{}) error {
 
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json")
+	// Prevent caching of sensitive authentication data
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	w.WriteHeader(status)
 	if payload == nil {
 		return

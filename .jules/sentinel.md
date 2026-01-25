@@ -37,3 +37,8 @@
 **Vulnerability:** The `ForgotPassword` flow was intended to be async to prevent timing attacks, but the `issuePasswordReset` DB write was still synchronous. This allowed an attacker to distinguish valid emails by the latency of the DB insert (~10ms+) versus immediate return.
 **Learning:** When making a flow asynchronous to hide side channels, *all* data-dependent operations (DB writes, external calls) must be moved to the async block. A single synchronous write before the async block defeats the protection.
 **Prevention:** Moved the token generation and DB insertion into the background goroutine in `ForgotPassword`.
+
+## 2026-01-25 - Sensitive Data Leakage via Browser Cache
+**Vulnerability:** The API returned JSON responses containing sensitive data (session tokens, PII) without `Cache-Control` headers. Browsers or intermediate proxies could cache these responses, allowing an attacker with access to the same machine or network to retrieve them (e.g., via history or disk cache).
+**Learning:** By default, browsers may cache GET responses (like `/auth/me`) or even some POST responses depending on heuristics. APIs serving sensitive authentication state must explicitly disable caching.
+**Prevention:** I modified the `respondJSON` helper to inject `Cache-Control: no-store` and `Pragma: no-cache` on all JSON responses. This ensures that sensitive data is never stored by the client or intermediaries.
