@@ -146,6 +146,11 @@ func (h *AuthHandlers) Me() http.HandlerFunc {
 
 func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Token string `json:"token"`
 		}
@@ -164,6 +169,11 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 
 func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Email string `json:"email"`
 		}
@@ -181,6 +191,11 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 
 func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Token       string `json:"token"`
 			NewPassword string `json:"new_password"`
@@ -200,6 +215,11 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 
 func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			UserID   string `json:"user_id"`
 			Password string `json:"password"`
@@ -224,6 +244,11 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 
 func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Token string `json:"token"`
 		}
