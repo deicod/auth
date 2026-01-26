@@ -8,12 +8,23 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	authpkg "github.com/deicod/auth"
 	"github.com/deicod/auth/core"
 )
 
-const maxBodySize = 1048576 // 1MB
+const (
+	maxBodySize    = 1048576 // 1MB
+	loginRateLimit = 5
+	loginRateWindow = time.Minute
+)
+
+type visitor struct {
+	count   int
+	resetAt time.Time
+}
 
 type AuthHandlers struct {
 	svc authpkg.Service
@@ -21,14 +32,25 @@ type AuthHandlers struct {
 	// If empty, X-Forwarded-For and X-Real-IP headers are TRUSTED (default-allow).
 	// To secure the application, you must configure this list.
 	TrustedProxies []string
+
+	mu       sync.Mutex
+	visitors map[string]*visitor
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
-	return &AuthHandlers{svc: svc}
+	return &AuthHandlers{
+		svc:      svc,
+		visitors: make(map[string]*visitor),
+	}
 }
 
 func (h *AuthHandlers) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Email    string `json:"email"`
 			Username string `json:"username"`
@@ -58,6 +80,11 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 
 func (h *AuthHandlers) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r)) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		var req struct {
 			Email    string `json:"email"`
 			Password string `json:"password"`
@@ -323,4 +350,29 @@ func bearerToken(header string) (string, bool) {
 		return "", false
 	}
 	return token, true
+}
+
+func (h *AuthHandlers) checkRateLimit(ip string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	v, exists := h.visitors[ip]
+	if !exists || time.Now().After(v.resetAt) {
+		h.visitors[ip] = &visitor{count: 1, resetAt: time.Now().Add(loginRateWindow)}
+		// Simple cleanup: if map is too big, purge expired
+		if len(h.visitors) > 1000 {
+			for k, val := range h.visitors {
+				if time.Now().After(val.resetAt) {
+					delete(h.visitors, k)
+				}
+			}
+		}
+		return true
+	}
+
+	if v.count >= loginRateLimit {
+		return false
+	}
+	v.count++
+	return true
 }

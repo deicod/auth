@@ -47,3 +47,8 @@
 **Vulnerability:** The application accepted any password that met the minimum length requirement (8 chars), allowing weak passwords like "password", "12345678", etc. There was no mechanism to enforce complexity.
 **Learning:** Defaulting to "minimal friction" (only length check) is common for libraries, but security-critical applications need the *option* to enforce stronger policies. Hardcoding checks or leaving it entirely to the user (validation before calling Register) leads to inconsistent enforcement.
 **Prevention:** Enhanced `config.Password` with boolean flags (`RequireUppercase`, etc.) and implemented a centralized `validatePassword` helper in the service layer. This ensures that if the policy is enabled, it is enforced consistently across all password-setting flows (Register, ResetPassword).
+
+## 2026-01-29 - Rate Limiting without Dependencies
+**Vulnerability:** The `Login` and `Register` endpoints were vulnerable to brute-force attacks and CPU exhaustion DoS because they lacked rate limiting.
+**Learning:** Implementing a robust rate limiter usually requires `golang.org/x/time` or Redis. However, strict dependency constraints ("Ask first") forced a simpler solution.
+**Prevention:** I implemented a "Fixed Window" rate limiter using a simple map and mutex within `AuthHandlers`. To prevent memory leaks without background goroutines, I added a "lazy cleanup" check that purges expired entries when the map grows too large. This provides sufficient protection for a single-instance service without adding dependencies.

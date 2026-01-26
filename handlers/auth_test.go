@@ -521,3 +521,43 @@ func TestCacheControlHeaders(t *testing.T) {
 		t.Errorf("expected Pragma: no-cache, got %q", val)
 	}
 }
+
+func TestRateLimiting(t *testing.T) {
+	svc := &fakeService{
+		loginRes: core.AuthResult{User: core.UserPublic{ID: "1"}},
+	}
+	h := New(svc)
+
+	// Make 5 requests (allowed)
+	for i := 0; i < 5; i++ {
+		body := `{"email":"t@e.com","password":"p"}`
+		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+		req.RemoteAddr = "192.0.2.1:1234"
+		rr := httptest.NewRecorder()
+		h.Login().ServeHTTP(rr, req)
+		if rr.Code == http.StatusTooManyRequests {
+			t.Fatalf("request %d was rate limited unexpectedly", i+1)
+		}
+	}
+
+	// 6th request should be blocked
+	body := `{"email":"t@e.com","password":"p"}`
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req.RemoteAddr = "192.0.2.1:1234"
+	rr := httptest.NewRecorder()
+	h.Login().ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 Too Many Requests, got %d", rr.Code)
+	}
+
+	// Request from different IP should be allowed
+	req2 := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req2.RemoteAddr = "192.0.2.2:1234"
+	rr2 := httptest.NewRecorder()
+	h.Login().ServeHTTP(rr2, req2)
+
+	if rr2.Code == http.StatusTooManyRequests {
+		t.Errorf("request from different IP was blocked")
+	}
+}
