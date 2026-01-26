@@ -52,3 +52,8 @@
 **Vulnerability:** The `Login` and `Register` endpoints were vulnerable to brute-force attacks and CPU exhaustion DoS because they lacked rate limiting.
 **Learning:** Implementing a robust rate limiter usually requires `golang.org/x/time` or Redis. However, strict dependency constraints ("Ask first") forced a simpler solution.
 **Prevention:** I implemented a "Fixed Window" rate limiter using a simple map and mutex within `AuthHandlers`. To prevent memory leaks without background goroutines, I added a "lazy cleanup" check that purges expired entries when the map grows too large. This provides sufficient protection for a single-instance service without adding dependencies.
+
+## 2026-01-30 - Incomplete Rate Limiting Coverage
+**Vulnerability:** While `Login` and `Register` were rate-limited, other sensitive endpoints like `ForgotPassword` (email trigger) and `VerifyEmail` (token verification) were not. This allowed attackers to perform email bombing or token brute-forcing.
+**Learning:** Rate limiting must be applied to *all* public endpoints that trigger side effects (emails, DB writes) or consume significant resources, not just authentication entry points.
+**Prevention:** Extended the existing `checkRateLimit` middleware-like check to `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `InitiateEmailChange`, and `ConfirmEmailChange`.
