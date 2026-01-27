@@ -386,9 +386,27 @@ func (h *AuthHandlers) checkRateLimit(ip string) bool {
 		h.visitors[ip] = &visitor{count: 1, resetAt: time.Now().Add(loginRateWindow)}
 		// Simple cleanup: if map is too big, purge expired
 		if len(h.visitors) > 1000 {
+			// Only check a fixed number of items to prevent DoS (O(N) scan)
+			// Go map iteration is random, so this is a random sample.
+			checked := 0
 			for k, val := range h.visitors {
 				if time.Now().After(val.resetAt) {
 					delete(h.visitors, k)
+				}
+				checked++
+				if checked >= 50 {
+					break
+				}
+			}
+
+			// Hard limit to prevent memory exhaustion
+			if len(h.visitors) > 5000 {
+				// Evict random items until we are back under the limit
+				for k := range h.visitors {
+					delete(h.visitors, k)
+					if len(h.visitors) <= 5000 {
+						break
+					}
 				}
 			}
 		}
