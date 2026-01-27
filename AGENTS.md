@@ -22,6 +22,7 @@ Use the standard Go toolchain for development:
 - **Download Dependencies**: `go mod tidy`
   - Ensures all module dependencies are updated.
 - **Format**: `go fmt ./...`
+- **Lint**: `golangci-lint run ./...`
 
 ## Coding Style & Naming Conventions
 
