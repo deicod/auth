@@ -57,3 +57,8 @@
 **Vulnerability:** While `Login` and `Register` were rate-limited, other sensitive endpoints like `ForgotPassword` (email trigger) and `VerifyEmail` (token verification) were not. This allowed attackers to perform email bombing or token brute-forcing.
 **Learning:** Rate limiting must be applied to *all* public endpoints that trigger side effects (emails, DB writes) or consume significant resources, not just authentication entry points.
 **Prevention:** Extended the existing `checkRateLimit` middleware-like check to `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `InitiateEmailChange`, and `ConfirmEmailChange`.
+
+## 2026-02-03 - DoS via Rate Limiter Cleanup
+**Vulnerability:** The in-memory rate limiter used a "lazy cleanup" strategy that iterated the entire visitor map (`O(N)`) inside a mutex lock whenever the map size exceeded a threshold. An attacker could fill the map with active visitors, causing every subsequent request to trigger a full map scan, leading to CPU exhaustion and request blocking.
+**Learning:** Naive "cleanup on write" strategies for in-memory caches can introduce DoS vectors if the cleanup complexity is linear (`O(N)`) and happens on the hot path. Bounded operations (`O(1)` or limited `N`) and hard limits are essential for stability.
+**Prevention:** Refactored the cleanup logic to check only a fixed number of items (50) per request and enforced a strict hard limit (5000) with random eviction. This ensures the rate limiter remains performant and bounded in memory usage even under attack.
