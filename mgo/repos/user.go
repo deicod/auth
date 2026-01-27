@@ -3,6 +3,7 @@ package repos
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/deicod/auth/internal/ctxutil"
@@ -84,12 +85,27 @@ func (r *UserRepository) FindByID(ctx context.Context, id bson.ObjectID) (models
 }
 
 func (r *UserRepository) UpdateFields(ctx context.Context, id bson.ObjectID, fields bson.M) error {
+	if err := validateUserUpdateFields(fields); err != nil {
+		return err
+	}
+
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
 	update := bson.M{"$set": fields}
 	_, err := r.coll.UpdateByID(ctx, id, update)
 	return ctxutil.NormalizeError(err, "mgo.user.update_fields")
+}
+
+func validateUserUpdateFields(fields bson.M) error {
+	for column := range fields {
+		switch column {
+		case "email", "username", "password_hash", "role", "is_verified", "created_at", "updated_at", "verified_at", "last_login_at":
+		default:
+			return fmt.Errorf("invalid column: %s", column)
+		}
+	}
+	return nil
 }
 
 func (r *UserRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {

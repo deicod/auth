@@ -57,3 +57,8 @@
 **Vulnerability:** While `Login` and `Register` were rate-limited, other sensitive endpoints like `ForgotPassword` (email trigger) and `VerifyEmail` (token verification) were not. This allowed attackers to perform email bombing or token brute-forcing.
 **Learning:** Rate limiting must be applied to *all* public endpoints that trigger side effects (emails, DB writes) or consume significant resources, not just authentication entry points.
 **Prevention:** Extended the existing `checkRateLimit` middleware-like check to `VerifyEmail`, `ForgotPassword`, `ResetPassword`, `InitiateEmailChange`, and `ConfirmEmailChange`.
+
+## 2026-01-31 - Mass Assignment Risk in MongoDB UpdateFields
+**Vulnerability:** The `UpdateFields` method in `mgo/repos/user.go` accepted a `bson.M` map and passed it directly to `$set` in MongoDB update. This allowed an attacker to potentially update any field in the user document (e.g. inject arbitrary fields or overwrite protected ones if not filtered upstream) by controlling the keys in the input map.
+**Learning:** Applying security fixes consistently across all adapters is crucial. While `pgx` and `sqlite` adapters were secured against this (SQL injection/mass assignment), the MongoDB adapter was overlooked.
+**Prevention:** I implemented an explicit allowlist validation in `mgo/repos/user.go` (similar to the SQL adapters) to ensure only known-safe fields can be updated. I also added a unit test to verify this validation logic.
