@@ -160,6 +160,23 @@ func TestEmailChangeFlow(t *testing.T) {
 	}
 }
 
+func TestInitiateEmailChange_UserEnumeration(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	// Non-existent user ID
+	cmd := core.ChangeEmailCommand{
+		UserID:   "non-existent-user",
+		Password: "somepassword",
+		NewEmail: "new@example.com",
+	}
+
+	err := svc.InitiateEmailChange(ctx, cmd)
+	if !errors.Is(err, core.ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials to prevent enumeration, got: %v", err)
+	}
+}
+
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()

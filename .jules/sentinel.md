@@ -62,7 +62,13 @@
 **Vulnerability:** The `UpdateFields` method in `mgo/repos/user.go` accepted a `bson.M` map and passed it directly to `$set` in MongoDB update. This allowed an attacker to potentially update any field in the user document (e.g. inject arbitrary fields or overwrite protected ones if not filtered upstream) by controlling the keys in the input map.
 **Learning:** Applying security fixes consistently across all adapters is crucial. While `pgx` and `sqlite` adapters were secured against this (SQL injection/mass assignment), the MongoDB adapter was overlooked.
 **Prevention:** I implemented an explicit allowlist validation in `mgo/repos/user.go` (similar to the SQL adapters) to ensure only known-safe fields can be updated. I also added a unit test to verify this validation logic.
+
 ## 2026-02-03 - DoS via Rate Limiter Cleanup
 **Vulnerability:** The in-memory rate limiter used a "lazy cleanup" strategy that iterated the entire visitor map (`O(N)`) inside a mutex lock whenever the map size exceeded a threshold. An attacker could fill the map with active visitors, causing every subsequent request to trigger a full map scan, leading to CPU exhaustion and request blocking.
 **Learning:** Naive "cleanup on write" strategies for in-memory caches can introduce DoS vectors if the cleanup complexity is linear (`O(N)`) and happens on the hot path. Bounded operations (`O(1)` or limited `N`) and hard limits are essential for stability.
 **Prevention:** Refactored the cleanup logic to check only a fixed number of items (50) per request and enforced a strict hard limit (5000) with random eviction. This ensures the rate limiter remains performant and bounded in memory usage even under attack.
+
+## 2026-02-04 - Username Enumeration via InitiateEmailChange
+**Vulnerability:** The `InitiateEmailChange` service method returned `ErrUserNotFound` immediately if the user ID did not exist, but performed expensive password hashing if the user existed. This timing difference (and the specific error code `404` vs `401`) allowed attackers to enumerate valid user IDs.
+**Learning:** Even if an endpoint requires a password (re-authentication), failing fast on "user not found" leaks the existence of the user. Security-critical flows must handle "user not found" and "invalid password" indistinguishably in terms of timing and error response.
+**Prevention:** Modified `InitiateEmailChange` to catch `ErrUserNotFound`, execute a dummy hash verification (to normalize timing), and return `ErrInvalidCredentials`. This ensures both invalid ID and invalid password result in the same 401 response and take the same amount of time.
