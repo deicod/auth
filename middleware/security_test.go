@@ -29,17 +29,13 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-XSS-Protection":          "1; mode=block",
 		"Referrer-Policy":           "strict-origin-when-cross-origin",
 		"Strict-Transport-Security": "max-age=63072000; includeSubDomains",
+		"Content-Security-Policy":   "default-src 'none'; frame-ancestors 'none';",
 	}
 
 	for header, expectedValue := range expectedHeaders {
 		if value := w.Header().Get(header); value != expectedValue {
 			t.Errorf("Expected header %s to be %q, but got %q", header, expectedValue, value)
 		}
-	}
-
-	// Ensure CSP is NOT set (as we removed it)
-	if value := w.Header().Get("Content-Security-Policy"); value != "" {
-		t.Errorf("Expected Content-Security-Policy to be empty, but got %q", value)
 	}
 }
 

@@ -62,7 +62,13 @@
 **Vulnerability:** The `UpdateFields` method in `mgo/repos/user.go` accepted a `bson.M` map and passed it directly to `$set` in MongoDB update. This allowed an attacker to potentially update any field in the user document (e.g. inject arbitrary fields or overwrite protected ones if not filtered upstream) by controlling the keys in the input map.
 **Learning:** Applying security fixes consistently across all adapters is crucial. While `pgx` and `sqlite` adapters were secured against this (SQL injection/mass assignment), the MongoDB adapter was overlooked.
 **Prevention:** I implemented an explicit allowlist validation in `mgo/repos/user.go` (similar to the SQL adapters) to ensure only known-safe fields can be updated. I also added a unit test to verify this validation logic.
+
 ## 2026-02-03 - DoS via Rate Limiter Cleanup
 **Vulnerability:** The in-memory rate limiter used a "lazy cleanup" strategy that iterated the entire visitor map (`O(N)`) inside a mutex lock whenever the map size exceeded a threshold. An attacker could fill the map with active visitors, causing every subsequent request to trigger a full map scan, leading to CPU exhaustion and request blocking.
 **Learning:** Naive "cleanup on write" strategies for in-memory caches can introduce DoS vectors if the cleanup complexity is linear (`O(N)`) and happens on the hot path. Bounded operations (`O(1)` or limited `N`) and hard limits are essential for stability.
 **Prevention:** Refactored the cleanup logic to check only a fixed number of items (50) per request and enforced a strict hard limit (5000) with random eviction. This ensures the rate limiter remains performant and bounded in memory usage even under attack.
+
+## 2026-06-25 - Missing CSP Header in API
+**Vulnerability:** The application was missing the `Content-Security-Policy` (CSP) header. While primarily an API service, the absence of CSP allows potential XSS or data injection if the API responses are ever interpreted as HTML by a browser or if the service is extended to serve frontend content.
+**Learning:** Even for pure API services, a restrictive CSP is a cheap and effective defense-in-depth measure. It prevents the API domain from being used as a source for malicious scripts or frames.
+**Prevention:** I added a strict `Content-Security-Policy: default-src 'none'; frame-ancestors 'none';` header to the `SecurityHeaders` middleware to lock down the API responses.
