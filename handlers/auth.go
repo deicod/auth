@@ -21,6 +21,8 @@ const (
 	loginRateWindow = time.Minute
 )
 
+var insecureProxyWarningOnce sync.Once
+
 type visitor struct {
 	count   int
 	resetAt time.Time
@@ -65,7 +67,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 			Email:     req.Email,
 			Username:  req.Username,
 			Password:  req.Password,
-			UserAgent: r.UserAgent(),
+			UserAgent: sanitizeUserAgent(r.UserAgent()),
 			IP:        h.clientIP(r),
 		}
 
@@ -97,7 +99,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 		cmd := core.LoginCommand{
 			Email:     req.Email,
 			Password:  req.Password,
-			UserAgent: r.UserAgent(),
+			UserAgent: sanitizeUserAgent(r.UserAgent()),
 			IP:        h.clientIP(r),
 		}
 
@@ -335,6 +337,11 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// Users should configure TrustedProxies to enable IP validation.
 	if len(h.TrustedProxies) == 0 {
 		trusted = true
+		if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Real-IP") != "" {
+			insecureProxyWarningOnce.Do(func() {
+				log.Println("WARNING: AuthHandlers.TrustedProxies is empty. Trusting X-Forwarded-For/X-Real-IP headers. This allows IP spoofing and bypass of rate limits. Please configure TrustedProxies.")
+			})
+		}
 	} else {
 		for _, proxy := range h.TrustedProxies {
 			if proxy == remoteIP {
@@ -422,4 +429,13 @@ func (h *AuthHandlers) checkRateLimit(ip string) bool {
 	}
 	v.count++
 	return true
+}
+
+func sanitizeUserAgent(ua string) string {
+	// Truncate to 512 characters to prevent DB issues or potential excessive logging/DoS
+	const maxUserAgentLen = 512
+	if len(ua) > maxUserAgentLen {
+		return ua[:maxUserAgentLen]
+	}
+	return ua
 }
