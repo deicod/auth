@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	maxBodySize    = 1048576 // 1MB
-	loginRateLimit = 5
+	maxBodySize     = 1048576 // 1MB
+	loginRateLimit  = 5
 	loginRateWindow = time.Minute
 )
 
@@ -288,7 +288,11 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 func decodeJSON(r *http.Request, dst interface{}) error {
 	// Limit request body to 1MB to prevent DoS
 	r.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
-	defer r.Body.Close()
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("auth handler failed to close request body: %v", err)
+		}
+	}()
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(dst); err != nil {

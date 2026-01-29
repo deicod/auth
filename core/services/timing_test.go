@@ -18,7 +18,7 @@ func (s *slowMailer) SendPasswordReset(ctx context.Context, user core.User, toke
 }
 
 func TestForgotPasswordTiming(t *testing.T) {
-	svc, deps := newTestService(t)
+	_, deps := newTestService(t)
 	// Replace the mailer with a slow one
 	slow := &slowMailer{captureMailer: *deps.mailer}
 
@@ -29,8 +29,7 @@ func TestForgotPasswordTiming(t *testing.T) {
 	// So we need to reconstruct AuthService.
 
 	// Let's just create a new one manually using the same deps but swapping mailer.
-	var err error
-	svc, err = New(Dependencies{
+	svc, err := New(Dependencies{
 		Stores: Stores{
 			Users:          deps.users,
 			Sessions:       deps.sessions,
@@ -77,12 +76,11 @@ func (s *slowResetStore) Create(ctx context.Context, params CreatePasswordResetP
 }
 
 func TestForgotPasswordTiming_SlowDB(t *testing.T) {
-	svc, deps := newTestService(t)
+	_, deps := newTestService(t)
 	// Replace the resets store with a slow one
 	slow := &slowResetStore{memPasswordResetStore: deps.resets}
 
-	var err error
-	svc, err = New(Dependencies{
+	svc, err := New(Dependencies{
 		Stores: Stores{
 			Users:          deps.users,
 			Sessions:       deps.sessions,

@@ -43,13 +43,19 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 
 	// Verify connection
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		closeErr := db.Close()
+		if closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 
 	// Apply migrations
 	if err := applyMigrations(ctx, db); err != nil {
-		db.Close()
+		closeErr := db.Close()
+		if closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 
@@ -125,7 +131,10 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		Mailer:         mailer,
 	})
 	if err != nil {
-		db.Close()
+		closeErr := db.Close()
+		if closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 

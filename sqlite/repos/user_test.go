@@ -19,7 +19,11 @@ func testDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
 
 	schema := `
 	CREATE TABLE users (

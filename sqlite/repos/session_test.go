@@ -133,18 +133,22 @@ func TestSessionRepository_RevokeByUser(t *testing.T) {
 	})
 
 	// Create multiple sessions
-	sessionRepo.Create(ctx, CreateSessionParams{
+	if _, err := sessionRepo.Create(ctx, CreateSessionParams{
 		UserID:    user.ID,
 		TokenHash: "session1",
 		ExpiresAt: time.Now().Add(time.Hour),
 		CreatedAt: time.Now(),
-	})
-	sessionRepo.Create(ctx, CreateSessionParams{
+	}); err != nil {
+		t.Fatalf("Create session1 failed: %v", err)
+	}
+	if _, err := sessionRepo.Create(ctx, CreateSessionParams{
 		UserID:    user.ID,
 		TokenHash: "session2",
 		ExpiresAt: time.Now().Add(time.Hour),
 		CreatedAt: time.Now(),
-	})
+	}); err != nil {
+		t.Fatalf("Create session2 failed: %v", err)
+	}
 
 	if err := sessionRepo.RevokeByUser(ctx, user.ID); err != nil {
 		t.Fatalf("RevokeByUser failed: %v", err)

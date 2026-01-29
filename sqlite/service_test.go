@@ -20,7 +20,11 @@ func TestServiceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	defer svc.Close(ctx)
+	t.Cleanup(func() {
+		if err := svc.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
 }
 
 func TestServiceRegisterAndLogin(t *testing.T) {
@@ -35,7 +39,11 @@ func TestServiceRegisterAndLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	defer svc.Close(ctx)
+	t.Cleanup(func() {
+		if err := svc.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
 
 	// Register a user
 	regResult, err := svc.Register(ctx, core.RegisterCommand{
@@ -105,7 +113,11 @@ func TestServiceWrongPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	defer svc.Close(ctx)
+	t.Cleanup(func() {
+		if err := svc.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
 
 	// Register a user
 	_, err = svc.Register(ctx, core.RegisterCommand{
@@ -142,7 +154,11 @@ func TestServiceForgotAndResetPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService failed: %v", err)
 	}
-	defer svc.Close(ctx)
+	t.Cleanup(func() {
+		if err := svc.Close(ctx); err != nil {
+			t.Errorf("Close failed: %v", err)
+		}
+	})
 
 	// Register a user
 	_, err = svc.Register(ctx, core.RegisterCommand{

@@ -43,9 +43,11 @@ func TestLoginDosProtection(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a user first
-	svc.Register(ctx, core.RegisterCommand{
-		Email: "u@e.com", Username: "u", Password: "p",
-	})
+	if _, err := svc.Register(ctx, core.RegisterCommand{
+		Email: "u@e.com", Username: "user1", Password: "password123",
+	}); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
 
 	longPassword := strings.Repeat("a", 2000)
 	_, err := svc.Login(ctx, core.LoginCommand{

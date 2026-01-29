@@ -50,14 +50,25 @@ func (h *PasswordHasher) Verify(encoded, password string) error {
 	var threads uint8
 	for _, param := range params {
 		if strings.HasPrefix(param, "m=") {
-			fmt.Sscanf(param, "m=%d", &memory)
+			if _, err := fmt.Sscanf(param, "m=%d", &memory); err != nil {
+				return fmt.Errorf("invalid memory param: %w", err)
+			}
 		} else if strings.HasPrefix(param, "t=") {
-			fmt.Sscanf(param, "t=%d", &timeCost)
+			if _, err := fmt.Sscanf(param, "t=%d", &timeCost); err != nil {
+				return fmt.Errorf("invalid time param: %w", err)
+			}
 		} else if strings.HasPrefix(param, "p=") {
 			var p uint32
-			fmt.Sscanf(param, "p=%d", &p)
+			if _, err := fmt.Sscanf(param, "p=%d", &p); err != nil {
+				return fmt.Errorf("invalid threads param: %w", err)
+			}
 			threads = uint8(p)
+		} else {
+			return errors.New("invalid hash params")
 		}
+	}
+	if memory == 0 || timeCost == 0 || threads == 0 {
+		return errors.New("invalid hash params")
 	}
 
 	salt, err := base64.RawStdEncoding.DecodeString(parts[3])

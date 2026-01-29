@@ -213,7 +213,9 @@ func TestResetPasswordExpired(t *testing.T) {
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
-	svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "e@e.com"})
+	if err := svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "e@e.com"}); err != nil {
+		t.Fatalf("forgot password failed: %v", err)
+	}
 
 	// Wait for async email
 	select {
@@ -248,7 +250,9 @@ func TestResetPasswordExpired(t *testing.T) {
 func TestRegisterDuplicateEmail(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user1", Password: "password123"})
+	if _, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user1", Password: "password123"}); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
 	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e@e.com", Username: "user2", Password: "password123"})
 	if !errors.Is(err, core.ErrEmailExists) {
 		t.Fatalf("expected ErrEmailExists, got %v", err)
@@ -258,7 +262,9 @@ func TestRegisterDuplicateEmail(t *testing.T) {
 func TestRegisterDuplicateUsername(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
-	svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "user1", Password: "password123"})
+	if _, err := svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "user1", Password: "password123"}); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
 	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "user1", Password: "password123"})
 	if !errors.Is(err, core.ErrUsernameExists) {
 		t.Fatalf("expected ErrUsernameExists, got %v", err)
@@ -379,6 +385,42 @@ func TestRegisterPasswordComplexity(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("expected success when validation disabled, got: %v", err)
+	}
+}
+
+func TestMemSessionStoreWithContextHelpers(t *testing.T) {
+	store := newMemSessionStore()
+	baseCtx, baseCancel := context.WithCancel(context.Background())
+	t.Cleanup(baseCancel)
+
+	ctx, cancel := store.withContext(baseCtx)
+	cancel()
+	select {
+	case <-ctx.Done():
+		t.Fatal("expected context to remain active after cancel")
+	default:
+	}
+
+	ctx2, cancel2 := store.withContext2(baseCtx)
+	cancel2()
+	select {
+	case <-ctx2.Done():
+		t.Fatal("expected context to remain active after cancel")
+	default:
+	}
+
+	baseCancel()
+
+	select {
+	case <-ctx.Done():
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected base context to cancel")
+	}
+
+	select {
+	case <-ctx2.Done():
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("expected base context to cancel")
 	}
 }
 
