@@ -318,6 +318,10 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEmailCommand) error {
 	user, err := s.stores.Users.FindByID(ctx, cmd.UserID)
 	if err != nil {
+		if errors.Is(err, core.ErrUserNotFound) {
+			_ = s.hasher.Verify(s.dummyHash, cmd.Password)
+			return core.ErrInvalidCredentials
+		}
 		return err
 	}
 
