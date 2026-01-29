@@ -48,33 +48,33 @@ func TestDoS_RateLimit_Cleanup(t *testing.T) {
 
 	t.Logf("Time taken for request with %d visitors: %v", initialSize, duration)
 
-    // With the fix, we expect this to be very fast (O(1) or O(limited)).
-    // Without the fix, it is O(N).
-    // We can't easily assert "too slow" in a generic environment, but we can check correctness of the fix later.
+	// With the fix, we expect this to be very fast (O(1) or O(limited)).
+	// Without the fix, it is O(N).
+	// We can't easily assert "too slow" in a generic environment, but we can check correctness of the fix later.
 }
 
 func TestDoS_RateLimit_MapGrowth(t *testing.T) {
-    // Verify that the map stops growing at some point (Hard Limit)
-    // The current implementation DOES NOT have a hard limit (other than memory).
+	// Verify that the map stops growing at some point (Hard Limit)
+	// The current implementation DOES NOT have a hard limit (other than memory).
 
-    svc := &fakeService{}
+	svc := &fakeService{}
 	h := New(svc)
 
-    // Fill to 5500 (above hard limit 5000)
-    limit := 5500
-    future := time.Now().Add(time.Hour)
-    for i := 0; i < limit; i++ {
+	// Fill to 5500 (above hard limit 5000)
+	limit := 5500
+	future := time.Now().Add(time.Hour)
+	for i := 0; i < limit; i++ {
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
 		h.visitors[ip] = &visitor{count: 1, resetAt: future}
 	}
 
-    // Add one more
-    req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+	// Add one more
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
 	req.RemoteAddr = "10.0.0.1:1234"
 	rr := httptest.NewRecorder()
 	h.Login().ServeHTTP(rr, req)
 
-    if len(h.visitors) > 5000 {
-        t.Errorf("Map size %d exceeded hard limit 5000", len(h.visitors))
-    }
+	if len(h.visitors) > 5000 {
+		t.Errorf("Map size %d exceeded hard limit 5000", len(h.visitors))
+	}
 }
