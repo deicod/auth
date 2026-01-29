@@ -72,3 +72,8 @@
 **Vulnerability:** The `InitiateEmailChange` service method returned `ErrUserNotFound` immediately if the user ID did not exist, but performed expensive password hashing if the user existed. This timing difference (and the specific error code `404` vs `401`) allowed attackers to enumerate valid user IDs.
 **Learning:** Even if an endpoint requires a password (re-authentication), failing fast on "user not found" leaks the existence of the user. Security-critical flows must handle "user not found" and "invalid password" indistinguishably in terms of timing and error response.
 **Prevention:** Modified `InitiateEmailChange` to catch `ErrUserNotFound`, execute a dummy hash verification (to normalize timing), and return `ErrInvalidCredentials`. This ensures both invalid ID and invalid password result in the same 401 response and take the same amount of time.
+
+## 2026-02-05 - Account Takeover via Silent Email Change
+**Vulnerability:** The `InitiateEmailChange` flow only sent a confirmation email to the *new* email address. If an attacker compromised an account (e.g., via password theft), they could change the email address to one they control without the legitimate owner being notified at their original address, leading to a stealthy account takeover.
+**Learning:** Account management actions (password change, email change, 2FA changes) must always notify the *existing* verified contact method (email/SMS). Relying solely on confirmation from the new channel leaves the user blind to malicious changes.
+**Prevention:** Modified `SendEmailChange` in the mailer to send a security alert to the `user.Email` (old address) in addition to the confirmation token sent to `newEmail`. This ensures the user is aware of and can react to unauthorized changes.

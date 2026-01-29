@@ -38,7 +38,17 @@ func (m *Mailer) SendPasswordReset(ctx context.Context, user core.User, token st
 func (m *Mailer) SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error {
 	subject := "Confirm your new email"
 	body := fmt.Sprintf("Hello %s,\n\nConfirm the email change to %s with token: %s\n", user.Username, newEmail, token)
-	return m.send(ctx, newEmail, subject, body)
+	if err := m.send(ctx, newEmail, subject, body); err != nil {
+		return err
+	}
+
+	// Notify the old email address about the requested change
+	alertSubject := "Security Alert: Email Change Requested"
+	alertBody := fmt.Sprintf("Hello %s,\n\nA request has been made to change your email address to %s.\nIf you did not request this change, please contact support immediately.\n", user.Username, newEmail)
+	// Best-effort notification; ignore error to avoid blocking the flow if old email is invalid
+	_ = m.send(ctx, user.Email, alertSubject, alertBody)
+
+	return nil
 }
 
 func (m *Mailer) send(ctx context.Context, recipient, subject, body string) error {
