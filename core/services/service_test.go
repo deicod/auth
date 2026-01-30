@@ -816,3 +816,31 @@ func (m *memEmailChangeStore) Consume(_ context.Context, id core.ID, consumedAt 
 	m.tokens[id] = token
 	return nil
 }
+
+func TestLoginEmailTooLong(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	longEmail := strings.Repeat("a", 300) + "@example.com"
+	_, err := svc.Login(ctx, core.LoginCommand{Email: longEmail, Password: "password"})
+	if !errors.Is(err, core.ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials for long email, got %v", err)
+	}
+}
+
+func TestForgotPasswordEmailTooLong(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	longEmail := strings.Repeat("a", 300) + "@example.com"
+	err := svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: longEmail})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "email too long") {
+		t.Fatalf("expected 'email too long' error, got %v", err)
+	}
+	if !errors.Is(err, core.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
