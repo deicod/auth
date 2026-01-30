@@ -163,6 +163,9 @@ func (s *AuthService) Login(ctx context.Context, cmd core.LoginCommand) (core.Au
 	if len(cmd.Password) > maxPasswordLength {
 		return core.AuthResult{}, core.ErrInvalidCredentials
 	}
+	if len(cmd.Email) > maxEmailLength {
+		return core.AuthResult{}, core.ErrInvalidCredentials
+	}
 
 	email := normalizeEmail(cmd.Email)
 	user, err := s.stores.Users.FindByEmail(ctx, email)
@@ -237,6 +240,10 @@ func (s *AuthService) VerifyEmail(ctx context.Context, cmd core.VerifyEmailComma
 }
 
 func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswordCommand) error {
+	if len(cmd.Email) > maxEmailLength {
+		return fmt.Errorf("%w: email too long", core.ErrInvalidInput)
+	}
+
 	email := normalizeEmail(cmd.Email)
 	user, err := s.stores.Users.FindByEmail(ctx, email)
 	if err != nil {
