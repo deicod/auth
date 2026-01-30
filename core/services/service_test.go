@@ -177,6 +177,39 @@ func TestInitiateEmailChange_UserEnumeration(t *testing.T) {
 	}
 }
 
+func TestInitiateEmailChange_InvalidEmail(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "frank@example.com", Username: "frank", Password: "secretpassword"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+
+	invalidEmails := []string{
+		"invalid-email",
+		//"user@domain", // accepted by mail.ParseAddress (e.g. localhost)
+		"user name@domain.com",
+		"user@domain.com\nSubject: Hacked",
+	}
+
+	for _, email := range invalidEmails {
+		t.Run(email, func(t *testing.T) {
+			cmd := core.ChangeEmailCommand{
+				UserID:   res.User.ID,
+				Password: "secretpassword",
+				NewEmail: email,
+			}
+			err := svc.InitiateEmailChange(ctx, cmd)
+			if err == nil {
+				t.Fatalf("expected error for invalid email %q, got nil", email)
+			}
+			if !strings.Contains(err.Error(), "invalid") && !strings.Contains(err.Error(), "mail") {
+				// We expect some form of validation error
+			}
+		})
+	}
+}
+
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()

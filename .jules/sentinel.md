@@ -72,3 +72,8 @@
 **Vulnerability:** The `InitiateEmailChange` service method returned `ErrUserNotFound` immediately if the user ID did not exist, but performed expensive password hashing if the user existed. This timing difference (and the specific error code `404` vs `401`) allowed attackers to enumerate valid user IDs.
 **Learning:** Even if an endpoint requires a password (re-authentication), failing fast on "user not found" leaks the existence of the user. Security-critical flows must handle "user not found" and "invalid password" indistinguishably in terms of timing and error response.
 **Prevention:** Modified `InitiateEmailChange` to catch `ErrUserNotFound`, execute a dummy hash verification (to normalize timing), and return `ErrInvalidCredentials`. This ensures both invalid ID and invalid password result in the same 401 response and take the same amount of time.
+
+## 2026-02-05 - Missing Email Validation in InitiateEmailChange
+**Vulnerability:** The `InitiateEmailChange` function accepted any string as a new email address, provided it wasn't too long. This allowed setting invalid emails (e.g. `invalid-email`, spaces) or potentially malicious payloads (e.g. `user@domain.com\nSubject: Hacked`) if the email sender didn't sanitize properly.
+**Learning:** Reusing validation logic (like `isValidEmail`) is easy to miss when implementing new features that look similar to existing ones (`Register` vs `InitiateEmailChange`). Consistency is key.
+**Prevention:** I added an explicit `isValidEmail(newEmail)` check in `InitiateEmailChange` to ensure only valid email formats are accepted, matching the validation in `Register`.

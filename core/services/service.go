@@ -336,6 +336,9 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 		return fmt.Errorf("%w: email too long", core.ErrInvalidInput)
 	}
 	newEmail := normalizeEmail(cmd.NewEmail)
+	if !isValidEmail(newEmail) {
+		return fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
+	}
 	if err := s.ensureEmailAvailable(ctx, newEmail, user.ID); err != nil {
 		return err
 	}
