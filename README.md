@@ -218,17 +218,17 @@ func main() {
 
 All handlers accept/return JSON and bubble up `core` errors with appropriate HTTP status codes.
 
-| Handler | Method + Path | Request Body | Response |
-| --- | --- | --- | --- |
-| `Register()` | `POST /auth/register` | `{email, username, password}` | `core.AuthResult` (user, session, token). |
-| `Login()` | `POST /auth/login` | `{email, password}` | `core.AuthResult`. |
-| `Logout()` | `POST /auth/logout` | Bearer token header | `204 No Content`. |
-| `Me()` | `GET /auth/me` | Bearer token header | `{user, session}`. |
-| `VerifyEmail()` | `POST /auth/verify` | `{token}` | `core.VerifyEmailResult`. |
-| `ForgotPassword()` | `POST /auth/forgot` | `{email}` | `{"status":"email_sent"}`. |
-| `ResetPassword()` | `POST /auth/reset` | `{token, new_password}` | `core.UserPublic`. |
-| `InitiateEmailChange()` | `POST /auth/email-change` | `{user_id, password, new_email}` | `{"status":"email_sent"}`. |
-| `ConfirmEmailChange()` | `POST /auth/email-confirm` | `{token}` | `core.ChangeEmailResult`. |
+| Handler | Method + Path | Request Body | Response | Rate Limit (per IP) |
+| --- | --- | --- | --- | --- |
+| `Register()` | `POST /auth/register` | `{email, username, password}` | `core.AuthResult` (user, session, token). | 5 req/min |
+| `Login()` | `POST /auth/login` | `{email, password}` | `core.AuthResult`. | 5 req/min |
+| `Logout()` | `POST /auth/logout` | Bearer token header | `204 No Content`. | 20 req/min |
+| `Me()` | `GET /auth/me` | Bearer token header | `{user, session}`. | 60 req/min |
+| `VerifyEmail()` | `POST /auth/verify` | `{token}` | `core.VerifyEmailResult`. | 5 req/min |
+| `ForgotPassword()` | `POST /auth/forgot` | `{email}` | `{"status":"email_sent"}`. | 5 req/min |
+| `ResetPassword()` | `POST /auth/reset` | `{token, new_password}` | `core.UserPublic`. | 5 req/min |
+| `InitiateEmailChange()` | `POST /auth/email-change` | `{user_id, password, new_email}` | `{"status":"email_sent"}`. | 5 req/min |
+| `ConfirmEmailChange()` | `POST /auth/email-confirm` | `{token}` | `core.ChangeEmailResult`. | 5 req/min |
 
 Use the helpers in `core/errors.go` to distinguish conflicts, bad requests, unauthorized cases, etc., if you need to customize error rendering.
 
