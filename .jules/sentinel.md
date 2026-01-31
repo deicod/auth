@@ -77,3 +77,8 @@
 **Vulnerability:** The `Login` and `ForgotPassword` service methods did not validate the length of the email input before processing. While the HTTP handler limits the body size to 1MB, passing a 1MB string to the database or normalization logic could cause performance degradation or DoS.
 **Learning:** Security controls (like length limits) must be applied consistently across *all* entry points. Adding a limit to `Register` does not automatically protect `Login` or `ForgotPassword`.
 **Prevention:** I added explicit `len(email) > maxEmailLength` checks to `Login` and `ForgotPassword` in `AuthService`, ensuring they fail fast before any expensive operations or database calls.
+
+## 2026-02-06 - Missing Rate Limiting on Authenticated Endpoints
+**Vulnerability:** Authenticated endpoints like `/auth/me` and `/auth/logout` were excluded from rate limiting logic. While they require a valid token, a compromised account or a malicious user could use them to spam the database (session and user lookups), causing a Denial of Service.
+**Learning:** Rate limiting is often thought of as a defense against unauthenticated attacks (brute force), but it is equally important for authenticated endpoints to prevent resource exhaustion from abusive clients.
+**Prevention:** Refactored the internal rate limiter to support granular limits and applied it to `Me` (60/min) and `Logout` (20/min) endpoints, ensuring that even authenticated users cannot overwhelm the database.
