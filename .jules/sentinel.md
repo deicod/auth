@@ -77,3 +77,8 @@
 **Vulnerability:** The `Login` and `ForgotPassword` service methods did not validate the length of the email input before processing. While the HTTP handler limits the body size to 1MB, passing a 1MB string to the database or normalization logic could cause performance degradation or DoS.
 **Learning:** Security controls (like length limits) must be applied consistently across *all* entry points. Adding a limit to `Register` does not automatically protect `Login` or `ForgotPassword`.
 **Prevention:** I added explicit `len(email) > maxEmailLength` checks to `Login` and `ForgotPassword` in `AuthService`, ensuring they fail fast before any expensive operations or database calls.
+
+## 2026-02-06 - Missing Content Security Policy (CSP)
+**Vulnerability:** The application lacked a `Content-Security-Policy` header. While primarily a JSON API, the absence of CSP meant that if any response was misinterpreted as HTML (e.g. via MIME confusion or future frontend integration), it would be vulnerable to XSS and framing attacks.
+**Learning:** Even for pure APIs, a strict `default-src 'none'` CSP provides cheap but effective defense-in-depth against unexpected rendering contexts or future regressions where HTML might be served.
+**Prevention:** Added `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` to the global security middleware.
