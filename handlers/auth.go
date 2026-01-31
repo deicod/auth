@@ -48,7 +48,7 @@ func New(svc authpkg.Service) *AuthHandlers {
 
 func (h *AuthHandlers) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -82,7 +82,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 
 func (h *AuthHandlers) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -114,6 +114,10 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 
 func (h *AuthHandlers) Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !h.checkRateLimit(h.clientIP(r), "logout", 20, time.Minute) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
 		token, ok := bearerToken(r.Header.Get("Authorization"))
 		if !ok {
 			writeJSONError(w, http.StatusUnauthorized, errors.New("missing bearer token"))
@@ -129,6 +133,12 @@ func (h *AuthHandlers) Logout() http.HandlerFunc {
 
 func (h *AuthHandlers) Me() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Use a higher rate limit for Me endpoint (60/min) to allow frequent checks but prevent DoS
+		if !h.checkRateLimit(h.clientIP(r), "me", 60, time.Minute) {
+			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			return
+		}
+
 		token, ok := bearerToken(r.Header.Get("Authorization"))
 		if !ok {
 			writeJSONError(w, http.StatusUnauthorized, errors.New("missing bearer token"))
@@ -148,7 +158,7 @@ func (h *AuthHandlers) Me() http.HandlerFunc {
 
 func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -171,7 +181,7 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 
 func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -193,7 +203,7 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 
 func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -217,7 +227,7 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 
 func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -246,7 +256,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 
 func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r)) {
+		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -388,13 +398,14 @@ func bearerToken(header string) (string, bool) {
 	return token, true
 }
 
-func (h *AuthHandlers) checkRateLimit(ip string) bool {
+func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.Duration) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	v, exists := h.visitors[ip]
+	key := ip + ":" + action
+	v, exists := h.visitors[key]
 	if !exists || time.Now().After(v.resetAt) {
-		h.visitors[ip] = &visitor{count: 1, resetAt: time.Now().Add(loginRateWindow)}
+		h.visitors[key] = &visitor{count: 1, resetAt: time.Now().Add(window)}
 		// Simple cleanup: if map is too big, purge expired
 		if len(h.visitors) > 1000 {
 			// Only check a fixed number of items to prevent DoS (O(N) scan)
@@ -424,7 +435,7 @@ func (h *AuthHandlers) checkRateLimit(ip string) bool {
 		return true
 	}
 
-	if v.count >= loginRateLimit {
+	if v.count >= limit {
 		return false
 	}
 	v.count++
