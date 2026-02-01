@@ -30,6 +30,7 @@ func TestSecurityHeaders(t *testing.T) {
 		"Referrer-Policy":           "strict-origin-when-cross-origin",
 		"Strict-Transport-Security": "max-age=63072000; includeSubDomains",
 		"Content-Security-Policy":   "default-src 'none'; frame-ancestors 'none'",
+		"Permissions-Policy":        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
 	}
 
 	for header, expectedValue := range expectedHeaders {
