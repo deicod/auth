@@ -28,6 +28,8 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		// Content Security Policy
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		// Permissions Policy (disable powerful features)
+		w.Header().Set("Permissions-Policy", "geolocation=(), camera=(), microphone=(), payment=(), usb=(), vr=()")
 		// Enforce HTTPS, but skip on localhost to avoid locking dev environments
 		if !isLocalhost(r.Host) {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
