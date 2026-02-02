@@ -70,10 +70,15 @@
 
 ## 2026-02-04 - Username Enumeration via InitiateEmailChange
 **Vulnerability:** The `InitiateEmailChange` service method returned `ErrUserNotFound` immediately if the user ID did not exist, but performed expensive password hashing if the user existed. This timing difference (and the specific error code `404` vs `401`) allowed attackers to enumerate valid user IDs.
-**Learning:** Even if an endpoint requires a password (re-authentication), failing fast on "user not found" leaks the existence of the user. Security-critical flows must handle "user not found" and "invalid password" indistinguishably in terms of timing and error response.
+**Learning:** Even if an endpoint requires a password (re-authentication), failing fast on "user not found" leaks the existence of the user. Security-critical flows must have constant-time execution paths regardless of the outcome.
 **Prevention:** Modified `InitiateEmailChange` to catch `ErrUserNotFound`, execute a dummy hash verification (to normalize timing), and return `ErrInvalidCredentials`. This ensures both invalid ID and invalid password result in the same 401 response and take the same amount of time.
 
 ## 2026-02-05 - DoS via Long Inputs in Login/Forgot Password
 **Vulnerability:** The `Login` and `ForgotPassword` service methods did not validate the length of the email input before processing. While the HTTP handler limits the body size to 1MB, passing a 1MB string to the database or normalization logic could cause performance degradation or DoS.
 **Learning:** Security controls (like length limits) must be applied consistently across *all* entry points. Adding a limit to `Register` does not automatically protect `Login` or `ForgotPassword`.
 **Prevention:** I added explicit `len(email) > maxEmailLength` checks to `Login` and `ForgotPassword` in `AuthService`, ensuring they fail fast before any expensive operations or database calls.
+
+## 2026-02-06 - Invalid UTF-8 via Safe Truncation
+**Vulnerability:** The `sanitizeUserAgent` function naively truncated the User-Agent string to 512 bytes using slice indexing (`ua[:512]`). If the 512th byte fell in the middle of a multi-byte UTF-8 character (like an emoji), the result would be an invalid UTF-8 string, potentially causing errors in downstream systems (like Postgres `text` fields) or security issues.
+**Learning:** Byte-level slicing of Go strings is unsafe for UTF-8 content. Simple truncation logic must account for variable-width encodings to preserve string validity.
+**Prevention:** I updated the truncation logic to check for invalid UTF-8 at the cut point using `utf8.DecodeLastRuneInString` and back off (remove bytes) until a valid character boundary is restored.

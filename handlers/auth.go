@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	authpkg "github.com/deicod/auth"
 	"github.com/deicod/auth/core"
@@ -446,7 +447,18 @@ func sanitizeUserAgent(ua string) string {
 	// Truncate to 512 characters to prevent DB issues or potential excessive logging/DoS
 	const maxUserAgentLen = 512
 	if len(ua) > maxUserAgentLen {
-		return ua[:maxUserAgentLen]
+		ua = ua[:maxUserAgentLen]
+		// If we cut a multi-byte character in half, the end will be invalid.
+		// Remove invalid bytes from the end until the string is valid UTF-8.
+		for len(ua) > 0 {
+			r, size := utf8.DecodeLastRuneInString(ua)
+			if r == utf8.RuneError && size == 1 {
+				ua = ua[:len(ua)-1]
+			} else {
+				break
+			}
+		}
+		return ua
 	}
 	return ua
 }
