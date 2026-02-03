@@ -26,6 +26,14 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		// Control referrer information
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		// Prevent data leakage via cross-origin openers
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		// Restrict resource loading to same origin
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		// Prevent Flash/PDF cross-domain policies
+		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		// Prevent file downloads from being opened directly (IE8)
+		w.Header().Set("X-Download-Options", "noopen")
 		// Content Security Policy
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		// Permissions Policy (formerly Feature Policy) to disable sensitive features

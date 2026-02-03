@@ -26,11 +26,15 @@ func TestSecurityHeaders(t *testing.T) {
 	expectedHeaders := map[string]string{
 		"X-Content-Type-Options":    "nosniff",
 		"X-Frame-Options":           "DENY",
-		"X-XSS-Protection":          "1; mode=block",
-		"Referrer-Policy":           "strict-origin-when-cross-origin",
-		"Strict-Transport-Security": "max-age=63072000; includeSubDomains",
-		"Content-Security-Policy":   "default-src 'none'; frame-ancestors 'none'",
-		"Permissions-Policy":        "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+		"X-XSS-Protection":                  "1; mode=block",
+		"Referrer-Policy":                   "strict-origin-when-cross-origin",
+		"Cross-Origin-Opener-Policy":        "same-origin",
+		"Cross-Origin-Resource-Policy":      "same-origin",
+		"X-Permitted-Cross-Domain-Policies": "none",
+		"X-Download-Options":                "noopen",
+		"Strict-Transport-Security":         "max-age=63072000; includeSubDomains",
+		"Content-Security-Policy":           "default-src 'none'; frame-ancestors 'none'",
+		"Permissions-Policy":                "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
 	}
 
 	for header, expectedValue := range expectedHeaders {
