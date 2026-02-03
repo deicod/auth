@@ -28,6 +28,14 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		// Content Security Policy
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		// Prevent other sites from opening the app in a way that allows cross-origin interactions
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		// Prevent other sites from loading resources from the app
+		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		// Prevent Flash/PDF from loading data from the domain
+		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		// Prevent IE from executing downloads in site context
+		w.Header().Set("X-Download-Options", "noopen")
 		// Permissions Policy (formerly Feature Policy) to disable sensitive features
 		w.Header().Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
 		// Enforce HTTPS, but skip on localhost to avoid locking dev environments
