@@ -371,12 +371,24 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 
 	if trusted {
 		if header := r.Header.Get("X-Forwarded-For"); header != "" {
-			parts := strings.Split(header, ",")
-			if ip := strings.TrimSpace(parts[0]); ip != "" {
+			// Avoid strings.Split to prevent large slice allocation if header contains many commas
+			ip := header
+			if idx := strings.IndexByte(header, ','); idx >= 0 {
+				ip = header[:idx]
+			}
+			if ip = strings.TrimSpace(ip); ip != "" {
+				// Prevent DoS via excessive IP length (max IPv6 mapped is ~45 chars)
+				if len(ip) > 64 || net.ParseIP(ip) == nil {
+					return remoteIP
+				}
 				return ip
 			}
 		}
 		if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
+			// Prevent DoS via excessive IP length
+			if len(header) > 64 || net.ParseIP(header) == nil {
+				return remoteIP
+			}
 			return header
 		}
 	}
