@@ -77,3 +77,8 @@
 **Vulnerability:** The `Login` and `ForgotPassword` service methods did not validate the length of the email input before processing. While the HTTP handler limits the body size to 1MB, passing a 1MB string to the database or normalization logic could cause performance degradation or DoS.
 **Learning:** Security controls (like length limits) must be applied consistently across *all* entry points. Adding a limit to `Register` does not automatically protect `Login` or `ForgotPassword`.
 **Prevention:** I added explicit `len(email) > maxEmailLength` checks to `Login` and `ForgotPassword` in `AuthService`, ensuring they fail fast before any expensive operations or database calls.
+
+## 2026-02-06 - Silent Email Change Account Takeover
+**Vulnerability:** The `SendEmailChange` method only sent a confirmation email to the *new* email address, failing to notify the *old* email address. This allows an attacker who compromises an account (e.g., via password theft) to change the email address silently, completing the account takeover without the victim being alerted.
+**Learning:** Discrepancy between documentation/intent ("explicitly notifies... best-effort") and implementation (missing call) can lead to serious security gaps. Always verify "security guarantees" in the actual code path.
+**Prevention:** Updated `SendEmailChange` to explicitly send a "Security Alert" notification to the old email address before processing the confirmation. Implemented as "best-effort" (logging errors) to avoid blocking the user flow if the old email is unreachable.

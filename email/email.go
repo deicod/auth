@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"fmt"
+	"log"
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
@@ -36,6 +37,14 @@ func (m *Mailer) SendPasswordReset(ctx context.Context, user core.User, token st
 }
 
 func (m *Mailer) SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error {
+	// Notify old email (Best Effort) to prevent silent account takeover
+	notifySubject := "Security Alert: Email Change Requested"
+	notifyBody := fmt.Sprintf("Hello %s,\n\nA request to change your email to %s has been initiated.\nIf this was you, you can ignore this message.\nIf you did not request this change, please contact support immediately.\n", user.Username, newEmail)
+
+	if err := m.send(ctx, user.Email, notifySubject, notifyBody); err != nil {
+		log.Printf("failed to send email change notification to old email %s: %v", user.Email, err)
+	}
+
 	subject := "Confirm your new email"
 	body := fmt.Sprintf("Hello %s,\n\nConfirm the email change to %s with token: %s\n", user.Username, newEmail, token)
 	return m.send(ctx, newEmail, subject, body)
