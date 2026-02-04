@@ -31,17 +31,17 @@ func startMockSMTPServer(t *testing.T, recipients chan<- string) (string, func()
 	}()
 
 	addr := ln.Addr().(*net.TCPAddr)
-	return fmt.Sprintf("127.0.0.1:%d", addr.Port), func() { ln.Close() }
+	return fmt.Sprintf("127.0.0.1:%d", addr.Port), func() { _ = ln.Close() }
 }
 
 func handleSMTPConnection(conn net.Conn, recipients chan<- string) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
 	// Initial greeting
-	writer.WriteString("220 mock.smtp ESMTP\r\n")
-	writer.Flush()
+	_, _ = writer.WriteString("220 mock.smtp ESMTP\r\n")
+	_ = writer.Flush()
 
 	inData := false
 
@@ -55,8 +55,8 @@ func handleSMTPConnection(conn net.Conn, recipients chan<- string) {
 		if inData {
 			if line == "." {
 				inData = false
-				writer.WriteString("250 OK\r\n")
-				writer.Flush()
+				_, _ = writer.WriteString("250 OK\r\n")
+				_ = writer.Flush()
 			}
 			// Ignore data lines
 			continue
@@ -65,11 +65,11 @@ func handleSMTPConnection(conn net.Conn, recipients chan<- string) {
 		upper := strings.ToUpper(line)
 		switch {
 		case strings.HasPrefix(upper, "EHLO") || strings.HasPrefix(upper, "HELO"):
-			writer.WriteString("250-Hello\r\n250 AUTH PLAIN LOGIN\r\n")
+			_, _ = writer.WriteString("250-Hello\r\n250 AUTH PLAIN LOGIN\r\n")
 		case strings.HasPrefix(upper, "AUTH"):
-			writer.WriteString("235 Authentication successful\r\n")
+			_, _ = writer.WriteString("235 Authentication successful\r\n")
 		case strings.HasPrefix(upper, "MAIL FROM:"):
-			writer.WriteString("250 OK\r\n")
+			_, _ = writer.WriteString("250 OK\r\n")
 		case strings.HasPrefix(upper, "RCPT TO:"):
 			// Capture recipient
 			// Format: RCPT TO:<email>
@@ -78,19 +78,19 @@ func handleSMTPConnection(conn net.Conn, recipients chan<- string) {
 				email := strings.Trim(parts[1], "<> ")
 				recipients <- email
 			}
-			writer.WriteString("250 OK\r\n")
+			_, _ = writer.WriteString("250 OK\r\n")
 		case upper == "DATA":
 			inData = true
-			writer.WriteString("354 End data with <CR><LF>.<CR><LF>\r\n")
+			_, _ = writer.WriteString("354 End data with <CR><LF>.<CR><LF>\r\n")
 		case upper == "QUIT":
-			writer.WriteString("221 Bye\r\n")
-			writer.Flush()
+			_, _ = writer.WriteString("221 Bye\r\n")
+			_ = writer.Flush()
 			return
 		default:
 			// Just say OK for anything else (NOOP, RSET, etc)
-			writer.WriteString("250 OK\r\n")
+			_, _ = writer.WriteString("250 OK\r\n")
 		}
-		writer.Flush()
+		_ = writer.Flush()
 	}
 }
 
@@ -101,7 +101,9 @@ func TestSendEmailChange_SecurityNotification(t *testing.T) {
 
 	host, portStr, _ := net.SplitHostPort(addr)
 	var port int
-	fmt.Sscanf(portStr, "%d", &port)
+	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+		t.Fatalf("failed to parse port: %v", err)
+	}
 
 	cfg := config.Mail{
 		Host:   host,
