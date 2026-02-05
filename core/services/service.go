@@ -32,6 +32,8 @@ type AuthService struct {
 const (
 	maxPasswordLength = 1024
 	maxEmailLength    = 254
+	// Limit token size to prevent hash/DB DoS from oversized inputs.
+	maxTokenLength = 1024
 )
 
 func New(deps Dependencies) (*AuthService, error) {
@@ -203,6 +205,10 @@ func (s *AuthService) Login(ctx context.Context, cmd core.LoginCommand) (core.Au
 }
 
 func (s *AuthService) VerifyEmail(ctx context.Context, cmd core.VerifyEmailCommand) (core.VerifyEmailResult, error) {
+	if len(cmd.Token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
+		return core.VerifyEmailResult{}, core.ErrTokenNotFound
+	}
 	hash := security.HashToken(cmd.Token)
 	token, err := s.stores.Verifications.FindByHash(ctx, hash)
 	if err != nil {
@@ -276,6 +282,10 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordCommand) (core.UserPublic, error) {
+	if len(cmd.Token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
+		return core.UserPublic{}, core.ErrTokenNotFound
+	}
 	hash := security.HashToken(cmd.Token)
 	token, err := s.stores.PasswordResets.FindByHash(ctx, hash)
 	if err != nil {
@@ -355,6 +365,10 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 }
 
 func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand) (core.ChangeEmailResult, error) {
+	if len(cmd.Token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
+		return core.ChangeEmailResult{}, core.ErrTokenNotFound
+	}
 	hash := security.HashToken(cmd.Token)
 	req, err := s.stores.EmailChanges.FindByHash(ctx, hash)
 	if err != nil {
