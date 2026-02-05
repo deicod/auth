@@ -13,6 +13,7 @@ type Sender interface {
 	SendVerification(ctx context.Context, user core.User, token string) error
 	SendPasswordReset(ctx context.Context, user core.User, token string) error
 	SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error
+	SendEmailChangeAlert(ctx context.Context, user core.User, newEmail string) error
 }
 
 type Mailer struct {
@@ -39,6 +40,12 @@ func (m *Mailer) SendEmailChange(ctx context.Context, user core.User, newEmail, 
 	subject := "Confirm your new email"
 	body := fmt.Sprintf("Hello %s,\n\nConfirm the email change to %s with token: %s\n", user.Username, newEmail, token)
 	return m.send(ctx, newEmail, subject, body)
+}
+
+func (m *Mailer) SendEmailChangeAlert(ctx context.Context, user core.User, newEmail string) error {
+	subject := "Email change requested"
+	body := fmt.Sprintf("Hello %s,\n\nWe received a request to change your email to %s. If this was you, please check that email for a confirmation link.\n\nIf you did not request this change, please contact support immediately or reset your password.\n", user.Username, newEmail)
+	return m.send(ctx, user.Email, subject, body)
 }
 
 func (m *Mailer) send(ctx context.Context, recipient, subject, body string) error {
@@ -92,5 +99,9 @@ func (NopSender) SendPasswordReset(ctx context.Context, user core.User, token st
 	return nil
 }
 func (NopSender) SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error {
+	return nil
+}
+
+func (NopSender) SendEmailChangeAlert(ctx context.Context, user core.User, newEmail string) error {
 	return nil
 }

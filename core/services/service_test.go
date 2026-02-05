@@ -143,6 +143,12 @@ func TestEmailChangeFlow(t *testing.T) {
 	if len(deps.mailer.emailChangeTokens) == 0 {
 		t.Fatalf("expected email change token")
 	}
+	if len(deps.mailer.changeAlerts) != 1 {
+		t.Fatalf("expected email change alert to be sent")
+	}
+	if deps.mailer.changeAlerts[0] != "frank@example.com" {
+		t.Errorf("expected alert to be sent to old email, got %s", deps.mailer.changeAlerts[0])
+	}
 	changeToken := deps.mailer.emailChangeTokens[0]
 
 	if _, err := svc.ConfirmEmailChange(ctx, core.ConfirmEmailChangeCommand{Token: changeToken}); err != nil {
@@ -495,6 +501,7 @@ type captureMailer struct {
 	verificationTokens []string
 	resetTokens        []string
 	emailChangeTokens  []string
+	changeAlerts       []string
 	notifyReset        chan struct{}
 }
 
@@ -516,6 +523,11 @@ func (c *captureMailer) SendPasswordReset(_ context.Context, _ core.User, token 
 
 func (c *captureMailer) SendEmailChange(_ context.Context, _ core.User, _ string, token string) error {
 	c.emailChangeTokens = append(c.emailChangeTokens, token)
+	return nil
+}
+
+func (c *captureMailer) SendEmailChangeAlert(_ context.Context, user core.User, _ string) error {
+	c.changeAlerts = append(c.changeAlerts, user.Email)
 	return nil
 }
 

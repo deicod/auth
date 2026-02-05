@@ -361,6 +361,13 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 	if err != nil {
 		return err
 	}
+
+	// SECURITY: Notify the old email address about the requested change.
+	// Best-effort: log error but don't fail the request.
+	if err := s.mailer.SendEmailChangeAlert(ctx, user, newEmail); err != nil {
+		log.Printf("failed to send email change alert to user %s: %v", user.ID, err)
+	}
+
 	return s.mailer.SendEmailChange(ctx, user, newEmail, token)
 }
 
