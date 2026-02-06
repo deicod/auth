@@ -133,6 +133,7 @@ func (h *AuthHandlers) Logout() http.HandlerFunc {
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "logout_success", "ip", h.clientIP(r))
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -181,6 +182,7 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "verify_email_success", "user_id", result.User.ID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusOK, result)
 	}
 }
@@ -258,6 +260,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "initiate_email_change_success", "user_id", cmd.UserID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusAccepted, map[string]string{"status": "email_sent"})
 	}
 }
@@ -281,6 +284,7 @@ func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "confirm_email_change_success", "user_id", result.User.ID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusOK, result)
 	}
 }
