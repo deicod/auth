@@ -404,16 +404,33 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 }
 
 func bearerToken(header string) (string, bool) {
-	parts := strings.Fields(header)
-	if len(parts) != 2 {
+	header = strings.TrimSpace(header)
+	if len(header) < 7 {
 		return "", false
 	}
-	if !strings.EqualFold(parts[0], "Bearer") {
+	if !strings.EqualFold(header[:6], "Bearer") {
 		return "", false
 	}
-	token := strings.TrimSpace(parts[1])
+
+	// The character immediately following "Bearer" MUST be whitespace (separator).
+	// We strictly require ASCII whitespace (SP, HTAB, LF, VT, FF, CR)
+	// which covers standard HTTP header usage and strings.Fields delimiters.
+	c := header[6]
+	if c != ' ' && c != '\t' && c != '\n' && c != '\r' && c != '\v' && c != '\f' {
+		return "", false
+	}
+
+	token := strings.TrimSpace(header[7:])
 	if token == "" {
 		return "", false
+	}
+
+	// Ensure no internal whitespace in the token to match strict 2-part format
+	for i := 0; i < len(token); i++ {
+		c := token[i]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f' {
+			return "", false
+		}
 	}
 	return token, true
 }
