@@ -140,4 +140,114 @@ func TestAuditLogging(t *testing.T) {
 			t.Errorf("expected log to contain user ID, got: %s", logOutput)
 		}
 	})
+
+	t.Run("InitiateEmailChangeSuccess", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{} // Returns nil error by default
+		h := New(svc)
+
+		body := map[string]string{"user_id": "user123", "password": "password", "new_email": "new@example.com"}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/auth/email-change", bytes.NewReader(jsonBody))
+		req.RemoteAddr = "10.0.0.3:1234"
+		rr := httptest.NewRecorder()
+
+		h.InitiateEmailChange().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "initiate_email_change_success") {
+			t.Errorf("expected log to contain 'initiate_email_change_success', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "user123") {
+			t.Errorf("expected log to contain user ID, got: %s", logOutput)
+		}
+	})
+
+	t.Run("ConfirmEmailChangeSuccess", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{
+			confirmEmailChangeRes: core.ChangeEmailResult{User: core.UserPublic{ID: "confirmed_user"}},
+		}
+		h := New(svc)
+
+		body := map[string]string{"token": "valid_token"}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", bytes.NewReader(jsonBody))
+		req.RemoteAddr = "10.0.0.4:1234"
+		rr := httptest.NewRecorder()
+
+		h.ConfirmEmailChange().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "confirm_email_change_success") {
+			t.Errorf("expected log to contain 'confirm_email_change_success', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "confirmed_user") {
+			t.Errorf("expected log to contain user ID, got: %s", logOutput)
+		}
+	})
+
+	t.Run("VerifyEmailSuccess", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{
+			verifyEmailRes: core.VerifyEmailResult{User: core.UserPublic{ID: "verified_user"}},
+		}
+		h := New(svc)
+
+		body := map[string]string{"token": "valid_token"}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/auth/verify", bytes.NewReader(jsonBody))
+		req.RemoteAddr = "10.0.0.5:1234"
+		rr := httptest.NewRecorder()
+
+		h.VerifyEmail().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "verify_email_success") {
+			t.Errorf("expected log to contain 'verify_email_success', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "verified_user") {
+			t.Errorf("expected log to contain user ID, got: %s", logOutput)
+		}
+	})
+
+	t.Run("VerifyEmailFailure", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{
+			verifyEmailErr: core.ErrTokenNotFound,
+		}
+		h := New(svc)
+
+		body := map[string]string{"token": "bad_token"}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/auth/verify", bytes.NewReader(jsonBody))
+		req.RemoteAddr = "10.0.0.6:1234"
+		rr := httptest.NewRecorder()
+
+		h.VerifyEmail().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "verify_email_failed") {
+			t.Errorf("expected log to contain 'verify_email_failed', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "10.0.0.6") {
+			t.Errorf("expected log to contain IP, got: %s", logOutput)
+		}
+	})
 }
