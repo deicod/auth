@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -74,9 +75,11 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 
 		result, err := h.svc.Register(r.Context(), cmd)
 		if err != nil {
+			slog.Warn("security_event", "action", "register_failed", "ip", cmd.IP, "email", cmd.Email, "username", cmd.Username, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "register_success", "user_id", result.User.ID, "ip", cmd.IP)
 		respondJSON(w, http.StatusCreated, result)
 	}
 }
@@ -106,9 +109,11 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 
 		result, err := h.svc.Login(r.Context(), cmd)
 		if err != nil {
+			slog.Warn("security_event", "action", "login_failed", "ip", cmd.IP, "email", cmd.Email, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "login_success", "user_id", result.User.ID, "ip", cmd.IP)
 		respondJSON(w, http.StatusOK, result)
 	}
 }
@@ -219,9 +224,11 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 		}
 		result, err := h.svc.ResetPassword(r.Context(), core.ResetPasswordCommand{Token: req.Token, NewPassword: req.NewPassword})
 		if err != nil {
+			slog.Warn("security_event", "action", "reset_password_failed", "ip", h.clientIP(r), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "reset_password_success", "user_id", result.ID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusOK, result)
 	}
 }
