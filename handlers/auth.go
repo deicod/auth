@@ -178,9 +178,11 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 		}
 		result, err := h.svc.VerifyEmail(r.Context(), core.VerifyEmailCommand{Token: req.Token})
 		if err != nil {
+			slog.Warn("security_event", "action", "verify_email_failed", "ip", h.clientIP(r), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "verify_email_success", "user_id", result.User.ID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusOK, result)
 	}
 }
@@ -255,9 +257,11 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			NewEmail: req.NewEmail,
 		}
 		if err := h.svc.InitiateEmailChange(r.Context(), cmd); err != nil {
+			slog.Warn("security_event", "action", "initiate_email_change_failed", "ip", h.clientIP(r), "user_id", cmd.UserID, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "initiate_email_change_success", "user_id", cmd.UserID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusAccepted, map[string]string{"status": "email_sent"})
 	}
 }
@@ -278,9 +282,11 @@ func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 		}
 		result, err := h.svc.ConfirmEmailChange(r.Context(), core.ConfirmEmailChangeCommand{Token: req.Token})
 		if err != nil {
+			slog.Warn("security_event", "action", "confirm_email_change_failed", "ip", h.clientIP(r), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "confirm_email_change_success", "user_id", result.User.ID, "ip", h.clientIP(r))
 		respondJSON(w, http.StatusOK, result)
 	}
 }
