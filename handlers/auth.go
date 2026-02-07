@@ -50,7 +50,8 @@ func New(svc authpkg.Service) *AuthHandlers {
 
 func (h *AuthHandlers) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -70,7 +71,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 			Username:  req.Username,
 			Password:  req.Password,
 			UserAgent: sanitizeUserAgent(r.UserAgent()),
-			IP:        h.clientIP(r),
+			IP:        ip,
 		}
 
 		result, err := h.svc.Register(r.Context(), cmd)
@@ -86,7 +87,8 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 
 func (h *AuthHandlers) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -104,7 +106,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 			Email:     req.Email,
 			Password:  req.Password,
 			UserAgent: sanitizeUserAgent(r.UserAgent()),
-			IP:        h.clientIP(r),
+			IP:        ip,
 		}
 
 		result, err := h.svc.Login(r.Context(), cmd)
@@ -120,7 +122,8 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 
 func (h *AuthHandlers) Logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "logout", 20, time.Minute) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "logout", 20, time.Minute) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -140,7 +143,8 @@ func (h *AuthHandlers) Logout() http.HandlerFunc {
 func (h *AuthHandlers) Me() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Use a higher rate limit for Me endpoint (60/min) to allow frequent checks but prevent DoS
-		if !h.checkRateLimit(h.clientIP(r), "me", 60, time.Minute) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "me", 60, time.Minute) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -164,7 +168,8 @@ func (h *AuthHandlers) Me() http.HandlerFunc {
 
 func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -178,18 +183,19 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 		}
 		result, err := h.svc.VerifyEmail(r.Context(), core.VerifyEmailCommand{Token: req.Token})
 		if err != nil {
-			slog.Warn("security_event", "action", "verify_email_failed", "ip", h.clientIP(r), "error", err.Error())
+			slog.Warn("security_event", "action", "verify_email_failed", "ip", ip, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
-		slog.Info("security_event", "action", "verify_email_success", "user_id", result.User.ID, "ip", h.clientIP(r))
+		slog.Info("security_event", "action", "verify_email_success", "user_id", result.User.ID, "ip", ip)
 		respondJSON(w, http.StatusOK, result)
 	}
 }
 
 func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -211,7 +217,8 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 
 func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -226,18 +233,19 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 		}
 		result, err := h.svc.ResetPassword(r.Context(), core.ResetPasswordCommand{Token: req.Token, NewPassword: req.NewPassword})
 		if err != nil {
-			slog.Warn("security_event", "action", "reset_password_failed", "ip", h.clientIP(r), "error", err.Error())
+			slog.Warn("security_event", "action", "reset_password_failed", "ip", ip, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
-		slog.Info("security_event", "action", "reset_password_success", "user_id", result.ID, "ip", h.clientIP(r))
+		slog.Info("security_event", "action", "reset_password_success", "user_id", result.ID, "ip", ip)
 		respondJSON(w, http.StatusOK, result)
 	}
 }
 
 func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -257,18 +265,19 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			NewEmail: req.NewEmail,
 		}
 		if err := h.svc.InitiateEmailChange(r.Context(), cmd); err != nil {
-			slog.Warn("security_event", "action", "initiate_email_change_failed", "ip", h.clientIP(r), "user_id", cmd.UserID, "error", err.Error())
+			slog.Warn("security_event", "action", "initiate_email_change_failed", "ip", ip, "user_id", cmd.UserID, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
-		slog.Info("security_event", "action", "initiate_email_change_success", "user_id", cmd.UserID, "ip", h.clientIP(r))
+		slog.Info("security_event", "action", "initiate_email_change_success", "user_id", cmd.UserID, "ip", ip)
 		respondJSON(w, http.StatusAccepted, map[string]string{"status": "email_sent"})
 	}
 }
 
 func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !h.checkRateLimit(h.clientIP(r), "strict", loginRateLimit, loginRateWindow) {
+		ip := h.clientIP(r)
+		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -282,11 +291,11 @@ func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 		}
 		result, err := h.svc.ConfirmEmailChange(r.Context(), core.ConfirmEmailChangeCommand{Token: req.Token})
 		if err != nil {
-			slog.Warn("security_event", "action", "confirm_email_change_failed", "ip", h.clientIP(r), "error", err.Error())
+			slog.Warn("security_event", "action", "confirm_email_change_failed", "ip", ip, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
-		slog.Info("security_event", "action", "confirm_email_change_success", "user_id", result.User.ID, "ip", h.clientIP(r))
+		slog.Info("security_event", "action", "confirm_email_change_success", "user_id", result.User.ID, "ip", ip)
 		respondJSON(w, http.StatusOK, result)
 	}
 }
