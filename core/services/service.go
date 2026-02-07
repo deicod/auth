@@ -34,6 +34,8 @@ const (
 	maxEmailLength    = 254
 	// Limit token size to prevent hash/DB DoS from oversized inputs.
 	maxTokenLength = 1024
+	// Timeout for async tasks like email sending to prevent goroutine leaks.
+	asyncTaskTimeout = 30 * time.Second
 )
 
 func New(deps Dependencies) (*AuthService, error) {
@@ -264,8 +266,9 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 	// If the DB write remains synchronous, an attacker can distinguish "User Found" (slow DB write)
 	// from "User Not Found" (fast return) by measuring response latency.
 	go func() {
-		// Use a detached context for the background operation
-		ctx := context.Background()
+		// Use a detached context with timeout for the background operation
+		ctx, cancel := context.WithTimeout(context.Background(), asyncTaskTimeout)
+		defer cancel()
 
 		token, err := s.issuePasswordReset(ctx, user)
 		if err != nil {
