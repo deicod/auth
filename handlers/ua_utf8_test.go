@@ -29,3 +29,23 @@ func TestSanitizeUserAgent_UTF8(t *testing.T) {
 	// IF the fix is implemented correctly.
 	// But for now, we just assert validity.
 }
+
+func TestSanitizeUserAgent_InvalidUTF8(t *testing.T) {
+	// Construct a string with invalid UTF-8 bytes
+	input := "User-Agent-With-Invalid-\xff-Bytes"
+
+	sanitized := sanitizeUserAgent(input)
+
+	if !utf8.ValidString(sanitized) {
+		t.Errorf("sanitizeUserAgent returned invalid UTF-8 string: %q", sanitized)
+	}
+
+	if strings.Contains(sanitized, "\xff") {
+		t.Errorf("sanitizeUserAgent failed to remove invalid bytes: %q", sanitized)
+	}
+
+	expected := "User-Agent-With-Invalid--Bytes" // invalid byte removed
+	if sanitized != expected {
+		t.Errorf("Expected sanitized string %q, got %q", expected, sanitized)
+	}
+}

@@ -494,30 +494,40 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 	return true
 }
 
+// sanitizeUserAgent truncates the user agent string to 512 bytes
+// and ensures it is valid UTF-8.
 func sanitizeUserAgent(ua string) string {
 	// Truncate to 512 characters to prevent DB issues or potential excessive logging/DoS
 	const maxUserAgentLen = 512
-	if len(ua) <= maxUserAgentLen {
-		return ua
-	}
+	if len(ua) > maxUserAgentLen {
+		// Simply slicing the byte string might split a multi-byte character.
+		// We need to ensure valid UTF-8.
 
-	// Simply slicing the byte string might split a multi-byte character.
-	// We need to ensure valid UTF-8.
-
-	// Check if the byte at the cutoff point is a rune start.
-	// utf8.RuneStart returns true if the byte is a start byte or ASCII (0xxxxxxx or 11xxxxxx).
-	// It returns false if it is a continuation byte (10xxxxxx).
-	if utf8.RuneStart(ua[maxUserAgentLen]) {
-		return ua[:maxUserAgentLen]
-	}
-
-	// We are in the middle of a sequence (ua[maxUserAgentLen] is a continuation byte).
-	// Backtrack to find the start of the incomplete rune and cut before it.
-	for i := maxUserAgentLen - 1; i >= 0; i-- {
-		if utf8.RuneStart(ua[i]) {
-			return ua[:i]
+		// Check if the byte at the cutoff point is a rune start.
+		// utf8.RuneStart returns true if the byte is a start byte or ASCII (0xxxxxxx or 11xxxxxx).
+		// It returns false if it is a continuation byte (10xxxxxx).
+		if utf8.RuneStart(ua[maxUserAgentLen]) {
+			ua = ua[:maxUserAgentLen]
+		} else {
+			// We are in the middle of a sequence (ua[maxUserAgentLen] is a continuation byte).
+			// Backtrack to find the start of the incomplete rune and cut before it.
+			found := false
+			for i := maxUserAgentLen - 1; i >= 0; i-- {
+				if utf8.RuneStart(ua[i]) {
+					ua = ua[:i]
+					found = true
+					break
+				}
+			}
+			if !found {
+				ua = ""
+			}
 		}
 	}
 
-	return ""
+	// Ensure valid UTF-8 after truncation.
+	// This removes any invalid byte sequences (replacing them with empty string).
+	// This prevents database errors (like Postgres "invalid byte sequence for encoding UTF8")
+	// and potential logging issues.
+	return strings.ToValidUTF8(ua, "")
 }
