@@ -37,6 +37,10 @@ type AuthHandlers struct {
 	// To secure the application, you must configure this list.
 	TrustedProxies []string
 
+	trustedCIDRs []*net.IPNet
+	trustedIPs   []string
+	initProxies  sync.Once
+
 	mu       sync.Mutex
 	visitors map[string]*visitor
 }
@@ -376,16 +380,30 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 			})
 		}
 	} else {
-		for _, proxy := range h.TrustedProxies {
+		h.initProxies.Do(func() {
+			for _, proxy := range h.TrustedProxies {
+				if _, ipNet, err := net.ParseCIDR(proxy); err == nil {
+					h.trustedCIDRs = append(h.trustedCIDRs, ipNet)
+				} else {
+					h.trustedIPs = append(h.trustedIPs, proxy)
+				}
+			}
+		})
+
+		for _, proxy := range h.trustedIPs {
 			if proxy == remoteIP {
 				trusted = true
 				break
 			}
-			_, ipNet, err := net.ParseCIDR(proxy)
-			if err == nil {
-				if ip := net.ParseIP(remoteIP); ip != nil && ipNet.Contains(ip) {
-					trusted = true
-					break
+		}
+
+		if !trusted && len(h.trustedCIDRs) > 0 {
+			if ip := net.ParseIP(remoteIP); ip != nil {
+				for _, ipNet := range h.trustedCIDRs {
+					if ipNet.Contains(ip) {
+						trusted = true
+						break
+					}
 				}
 			}
 		}
