@@ -469,6 +469,14 @@ func TestClientIP(t *testing.T) {
 			remoteAddr: "1.2.3.4:1234",
 			wantIP:     "1.2.3.4",
 		},
+		{
+			name:           "TrustedProxy_SpoofingAttempt",
+			remoteAddr:     "1.2.3.4:1234",
+			headerKey:      "X-Forwarded-For",
+			headerVal:      "8.8.8.8, 6.6.6.6",
+			trustedProxies: []string{"1.2.3.4"},
+			wantIP:         "6.6.6.6",
+		},
 	}
 
 	for _, tt := range tests {
