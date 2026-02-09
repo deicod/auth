@@ -368,18 +368,8 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 		remoteIP = r.RemoteAddr
 	}
 
-	trusted := false
-	// If no trusted proxies are configured, we default to trusting headers (default-allow).
-	// This is necessary because in many environments (like K8s) we can't easily know the proxy IP.
-	// Users should configure TrustedProxies to enable IP validation.
-	if len(h.TrustedProxies) == 0 {
-		trusted = true
-		if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Real-IP") != "" {
-			insecureProxyWarningOnce.Do(func() {
-				log.Println("WARNING: AuthHandlers.TrustedProxies is empty. Trusting X-Forwarded-For/X-Real-IP headers. This allows IP spoofing and bypass of rate limits. Please configure TrustedProxies.")
-			})
-		}
-	} else {
+	// Initialize trusted proxies
+	if len(h.TrustedProxies) > 0 {
 		h.initProxies.Do(func() {
 			for _, proxy := range h.TrustedProxies {
 				if _, ipNet, err := net.ParseCIDR(proxy); err == nil {
@@ -389,46 +379,73 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 				}
 			}
 		})
+	} else {
+		if r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Real-IP") != "" {
+			insecureProxyWarningOnce.Do(func() {
+				log.Println("WARNING: AuthHandlers.TrustedProxies is empty. Trusting X-Forwarded-For/X-Real-IP headers. This allows IP spoofing and bypass of rate limits. Please configure TrustedProxies.")
+			})
+		}
+	}
 
-		for _, proxy := range h.trustedIPs {
-			if proxy == remoteIP {
-				trusted = true
-				break
+	isTrusted := func(ip string) bool {
+		// If no trusted proxies configured, we default to trusting ALL (default-allow).
+		if len(h.TrustedProxies) == 0 {
+			return true
+		}
+		for _, trustedIP := range h.trustedIPs {
+			if trustedIP == ip {
+				return true
 			}
 		}
-
-		if !trusted && len(h.trustedCIDRs) > 0 {
-			if ip := net.ParseIP(remoteIP); ip != nil {
+		if len(h.trustedCIDRs) > 0 {
+			if parsedIP := net.ParseIP(ip); parsedIP != nil {
 				for _, ipNet := range h.trustedCIDRs {
-					if ipNet.Contains(ip) {
-						trusted = true
-						break
+					if ipNet.Contains(parsedIP) {
+						return true
 					}
 				}
 			}
 		}
+		return false
 	}
 
-	if trusted {
-		if header := r.Header.Get("X-Forwarded-For"); header != "" {
-			// Avoid strings.Split to prevent large slice allocation if header contains many commas
-			ip := header
-			if idx := strings.IndexByte(header, ','); idx >= 0 {
-				ip = header[:idx]
+	// First check if the immediate peer is trusted
+	if !isTrusted(remoteIP) {
+		return remoteIP
+	}
+
+	// Peer is trusted, check headers.
+	// We prefer X-Forwarded-For (standard), but fall back to X-Real-IP.
+	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
+	// This prevents IP spoofing where a client appends a fake IP to the header.
+	if header := r.Header.Get("X-Forwarded-For"); header != "" {
+		parts := strings.Split(header, ",")
+		for i := len(parts) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(parts[i])
+			if ip == "" {
+				continue
 			}
-			if ip = strings.TrimSpace(ip); ip != "" {
-				// Prevent DoS via excessive IP length (max IPv6 mapped is ~45 chars)
-				if len(ip) > 64 || net.ParseIP(ip) == nil {
-					return remoteIP
-				}
+			// Validate IP format
+			if len(ip) > 64 || net.ParseIP(ip) == nil {
+				continue // Skip invalid IPs
+			}
+
+			if !isTrusted(ip) {
 				return ip
 			}
 		}
-		if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
-			// Prevent DoS via excessive IP length
-			if len(header) > 64 || net.ParseIP(header) == nil {
-				return remoteIP
+		// If we reach here, all IPs in the chain are trusted.
+		// Return the leftmost valid IP (the original client according to the chain).
+		for _, part := range parts {
+			ip := strings.TrimSpace(part)
+			if ip != "" && len(ip) <= 64 && net.ParseIP(ip) != nil {
+				return ip
 			}
+		}
+	}
+
+	if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
+		if len(header) <= 64 && net.ParseIP(header) != nil {
 			return header
 		}
 	}
