@@ -363,10 +363,7 @@ func writeJSONError(w http.ResponseWriter, status int, err error) {
 }
 
 func (h *AuthHandlers) clientIP(r *http.Request) string {
-	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		remoteIP = r.RemoteAddr
-	}
+	remoteIP := extractIP(r.RemoteAddr)
 
 	trusted := false
 	// If no trusted proxies are configured, we default to trusting headers (default-allow).
@@ -548,4 +545,30 @@ func sanitizeUserAgent(ua string) string {
 	// This prevents database errors (like Postgres "invalid byte sequence for encoding UTF8")
 	// and potential logging issues.
 	return strings.ToValidUTF8(ua, "")
+}
+
+// extractIP extracts the IP address from a "IP:Port" string.
+// It avoids allocation by slicing the input string.
+func extractIP(remoteAddr string) string {
+	if remoteAddr == "" {
+		return ""
+	}
+	if remoteAddr[0] == '[' {
+		// IPv6 with brackets
+		endBracket := strings.IndexByte(remoteAddr, ']')
+		if endBracket != -1 {
+			return remoteAddr[1:endBracket]
+		}
+		return remoteAddr
+	}
+
+	colon := strings.LastIndexByte(remoteAddr, ':')
+	if colon != -1 {
+		// If there is another colon before the last one, it's IPv6 without brackets (no port).
+		if strings.IndexByte(remoteAddr, ':') < colon {
+			return remoteAddr
+		}
+		return remoteAddr[:colon]
+	}
+	return remoteAddr
 }
