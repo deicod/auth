@@ -250,4 +250,58 @@ func TestAuditLogging(t *testing.T) {
 			t.Errorf("expected log to contain IP, got: %s", logOutput)
 		}
 	})
+
+	t.Run("LogoutSuccess", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{}
+		h := New(svc)
+
+		req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+		req.Header.Set("Authorization", "Bearer validtoken")
+		req.RemoteAddr = "10.0.0.7:1234"
+		rr := httptest.NewRecorder()
+
+		h.Logout().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("expected 204, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "logout_success") {
+			t.Errorf("expected log to contain 'logout_success', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "10.0.0.7") {
+			t.Errorf("expected log to contain IP, got: %s", logOutput)
+		}
+	})
+
+	t.Run("ForgotPasswordRequested", func(t *testing.T) {
+		buf.Reset()
+		svc := &fakeService{}
+		h := New(svc)
+
+		body := map[string]string{"email": "forgot@example.com"}
+		jsonBody, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/auth/forgot-password", bytes.NewReader(jsonBody))
+		req.RemoteAddr = "10.0.0.8:1234"
+		rr := httptest.NewRecorder()
+
+		h.ForgotPassword().ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusAccepted {
+			t.Fatalf("expected 202, got %d", rr.Code)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "forgot_password_requested") {
+			t.Errorf("expected log to contain 'forgot_password_requested', got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "forgot@example.com") {
+			t.Errorf("expected log to contain email, got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "10.0.0.8") {
+			t.Errorf("expected log to contain IP, got: %s", logOutput)
+		}
+	})
 }

@@ -137,9 +137,11 @@ func (h *AuthHandlers) Logout() http.HandlerFunc {
 			return
 		}
 		if err := h.svc.Logout(r.Context(), token); err != nil {
+			slog.Warn("security_event", "action", "logout_failed", "ip", ip, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "logout_success", "ip", ip)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -212,9 +214,11 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 			return
 		}
 		if err := h.svc.ForgotPassword(r.Context(), core.ForgotPasswordCommand{Email: req.Email}); err != nil {
+			slog.Warn("security_event", "action", "forgot_password_failed", "ip", ip, "email", req.Email, "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
+		slog.Info("security_event", "action", "forgot_password_requested", "ip", ip, "email", req.Email)
 		respondJSON(w, http.StatusAccepted, map[string]string{"status": "email_sent"})
 	}
 }
