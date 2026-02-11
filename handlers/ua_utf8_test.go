@@ -49,3 +49,19 @@ func TestSanitizeUserAgent_InvalidUTF8(t *testing.T) {
 		t.Errorf("Expected sanitized string %q, got %q", expected, sanitized)
 	}
 }
+
+func TestSanitizeUserAgent_NullBytes(t *testing.T) {
+	// Construct a string with NULL bytes
+	input := "User-Agent-With-\x00-Null-Bytes"
+
+	sanitized := sanitizeUserAgent(input)
+
+	if strings.Contains(sanitized, "\x00") {
+		t.Errorf("sanitizeUserAgent failed to remove NULL bytes: %q", sanitized)
+	}
+
+	expected := "User-Agent-With--Null-Bytes" // NULL byte removed
+	if sanitized != expected {
+		t.Errorf("Expected sanitized string %q, got %q", expected, sanitized)
+	}
+}
