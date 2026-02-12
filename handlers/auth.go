@@ -424,7 +424,10 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// We prefer X-Forwarded-For (standard), but fall back to X-Real-IP.
 	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
 	// This prevents IP spoofing where a client appends a fake IP to the header.
-	if header := r.Header.Get("X-Forwarded-For"); header != "" {
+	if headers := r.Header["X-Forwarded-For"]; len(headers) > 0 {
+		// Join all header values with comma in case multiple headers are present
+		// (e.g., if the proxy appends a new header line instead of merging).
+		header := strings.Join(headers, ",")
 		parts := strings.Split(header, ",")
 		for i := len(parts) - 1; i >= 0; i-- {
 			ip := strings.TrimSpace(parts[i])
