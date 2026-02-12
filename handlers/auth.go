@@ -30,6 +30,11 @@ type visitor struct {
 	resetAt time.Time
 }
 
+type rateLimitKey struct {
+	ip     string
+	action string
+}
+
 type AuthHandlers struct {
 	svc authpkg.Service
 	// TrustedProxies is a list of trusted IP addresses or CIDR ranges.
@@ -42,13 +47,13 @@ type AuthHandlers struct {
 	initProxies  sync.Once
 
 	mu       sync.Mutex
-	visitors map[string]*visitor
+	visitors map[rateLimitKey]*visitor
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
 	return &AuthHandlers{
 		svc:      svc,
-		visitors: make(map[string]*visitor),
+		visitors: make(map[rateLimitKey]*visitor),
 	}
 }
 
@@ -490,7 +495,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	key := ip + ":" + action
+	key := rateLimitKey{ip, action}
 	v, exists := h.visitors[key]
 	if !exists || time.Now().After(v.resetAt) {
 		h.visitors[key] = &visitor{count: 1, resetAt: time.Now().Add(window)}
