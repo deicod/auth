@@ -393,30 +393,8 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 		}
 	}
 
-	isTrusted := func(ip string) bool {
-		// If no trusted proxies configured, we default to trusting ALL (default-allow).
-		if len(h.TrustedProxies) == 0 {
-			return true
-		}
-		for _, trustedIP := range h.trustedIPs {
-			if trustedIP == ip {
-				return true
-			}
-		}
-		if len(h.trustedCIDRs) > 0 {
-			if parsedIP := net.ParseIP(ip); parsedIP != nil {
-				for _, ipNet := range h.trustedCIDRs {
-					if ipNet.Contains(parsedIP) {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}
-
 	// First check if the immediate peer is trusted
-	if !isTrusted(remoteIP) {
+	if !h.isTrustedIP(remoteIP, nil) {
 		return remoteIP
 	}
 
@@ -425,28 +403,41 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
 	// This prevents IP spoofing where a client appends a fake IP to the header.
 	if header := r.Header.Get("X-Forwarded-For"); header != "" {
-		parts := strings.Split(header, ",")
-		for i := len(parts) - 1; i >= 0; i-- {
-			ip := strings.TrimSpace(parts[i])
+		var lastValidIP string
+		end := len(header)
+		for end > 0 {
+			start := strings.LastIndexByte(header[:end], ',')
+			var part string
+			if start == -1 {
+				part = header[:end]
+				end = 0
+			} else {
+				part = header[start+1 : end]
+				end = start
+			}
+
+			ip := strings.TrimSpace(part)
 			if ip == "" {
 				continue
 			}
+
 			// Validate IP format
-			if len(ip) > 64 || net.ParseIP(ip) == nil {
+			parsed := net.ParseIP(ip)
+			if len(ip) > 64 || parsed == nil {
 				continue // Skip invalid IPs
 			}
 
-			if !isTrusted(ip) {
+			// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
+			lastValidIP = ip
+
+			if !h.isTrustedIP(ip, parsed) {
 				return ip
 			}
 		}
 		// If we reach here, all IPs in the chain are trusted.
 		// Return the leftmost valid IP (the original client according to the chain).
-		for _, part := range parts {
-			ip := strings.TrimSpace(part)
-			if ip != "" && len(ip) <= 64 && net.ParseIP(ip) != nil {
-				return ip
-			}
+		if lastValidIP != "" {
+			return lastValidIP
 		}
 	}
 
@@ -457,6 +448,31 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	}
 
 	return remoteIP
+}
+
+func (h *AuthHandlers) isTrustedIP(ip string, parsedIP net.IP) bool {
+	// If no trusted proxies configured, we default to trusting ALL (default-allow).
+	if len(h.TrustedProxies) == 0 {
+		return true
+	}
+	for _, trustedIP := range h.trustedIPs {
+		if trustedIP == ip {
+			return true
+		}
+	}
+	if len(h.trustedCIDRs) > 0 {
+		if parsedIP == nil {
+			parsedIP = net.ParseIP(ip)
+		}
+		if parsedIP != nil {
+			for _, ipNet := range h.trustedCIDRs {
+				if ipNet.Contains(parsedIP) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func bearerToken(header string) (string, bool) {
