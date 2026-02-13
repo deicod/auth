@@ -554,6 +554,13 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 // sanitizeUserAgent truncates the user agent string to 512 bytes
 // and ensures it is valid UTF-8.
 func sanitizeUserAgent(ua string) string {
+	// Prevent excessive memory allocation by capping input size early.
+	// We use a larger buffer (2048) than the final limit (512) to account for
+	// bytes that might be removed (like NULLs) or multi-byte characters.
+	if len(ua) > 2048 {
+		ua = ua[:2048]
+	}
+
 	// Remove NULL bytes first to prevent DB issues (Postgres text fields reject \0)
 	// and potential logging issues.
 	ua = strings.ReplaceAll(ua, "\x00", "")
