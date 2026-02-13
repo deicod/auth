@@ -554,15 +554,12 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 // sanitizeUserAgent truncates the user agent string to 512 bytes
 // and ensures it is valid UTF-8.
 func sanitizeUserAgent(ua string) string {
-	// Remove NULL bytes first to prevent DB issues (Postgres text fields reject \0)
-	// and potential logging issues.
-	ua = strings.ReplaceAll(ua, "\x00", "")
-
-	// Truncate to 512 characters to prevent DB issues or potential excessive logging/DoS
+	// Truncate to 512 characters to prevent DB issues or potential excessive logging/DoS.
+	// We do this FIRST to avoid processing large strings that will be discarded anyway.
 	const maxUserAgentLen = 512
 	if len(ua) > maxUserAgentLen {
 		// Simply slicing the byte string might split a multi-byte character.
-		// We need to ensure valid UTF-8.
+		// We need to ensure valid UTF-8 boundary.
 
 		// Check if the byte at the cutoff point is a rune start.
 		// utf8.RuneStart returns true if the byte is a start byte or ASCII (0xxxxxxx or 11xxxxxx).
@@ -585,6 +582,10 @@ func sanitizeUserAgent(ua string) string {
 			}
 		}
 	}
+
+	// Remove NULL bytes to prevent DB issues (Postgres text fields reject \0)
+	// and potential logging issues.
+	ua = strings.ReplaceAll(ua, "\x00", "")
 
 	// Ensure valid UTF-8 after truncation.
 	// This removes any invalid byte sequences (replacing them with empty string).
