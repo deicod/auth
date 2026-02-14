@@ -402,36 +402,39 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// We prefer X-Forwarded-For (standard), but fall back to X-Real-IP.
 	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
 	// This prevents IP spoofing where a client appends a fake IP to the header.
-	if header := r.Header.Get("X-Forwarded-For"); header != "" {
+	if xffHeaders := r.Header["X-Forwarded-For"]; len(xffHeaders) > 0 {
 		var lastValidIP string
-		end := len(header)
-		for end > 0 {
-			start := strings.LastIndexByte(header[:end], ',')
-			var part string
-			if start == -1 {
-				part = header[:end]
-				end = 0
-			} else {
-				part = header[start+1 : end]
-				end = start
-			}
+		for i := len(xffHeaders) - 1; i >= 0; i-- {
+			header := xffHeaders[i]
+			end := len(header)
+			for end > 0 {
+				start := strings.LastIndexByte(header[:end], ',')
+				var part string
+				if start == -1 {
+					part = header[:end]
+					end = 0
+				} else {
+					part = header[start+1 : end]
+					end = start
+				}
 
-			ip := strings.TrimSpace(part)
-			if ip == "" {
-				continue
-			}
+				ip := strings.TrimSpace(part)
+				if ip == "" {
+					continue
+				}
 
-			// Validate IP format
-			parsed := net.ParseIP(ip)
-			if len(ip) > 64 || parsed == nil {
-				continue // Skip invalid IPs
-			}
+				// Validate IP format
+				parsed := net.ParseIP(ip)
+				if len(ip) > 64 || parsed == nil {
+					continue // Skip invalid IPs
+				}
 
-			// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
-			lastValidIP = ip
+				// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
+				lastValidIP = ip
 
-			if !h.isTrustedIP(ip, parsed) {
-				return ip
+				if !h.isTrustedIP(ip, parsed) {
+					return ip
+				}
 			}
 		}
 		// If we reach here, all IPs in the chain are trusted.
