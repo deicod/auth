@@ -6,8 +6,8 @@ import (
 	"io"
 	"log"
 	"log/slog"
-	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -42,9 +42,10 @@ type AuthHandlers struct {
 	// To secure the application, you must configure this list.
 	TrustedProxies []string
 
-	trustedCIDRs []*net.IPNet
-	trustedIPs   []string
-	initProxies  sync.Once
+	trustedCIDRs   []netip.Prefix
+	trustedIPs     []netip.Addr
+	trustedStrings []string
+	initProxies    sync.Once
 
 	mu       sync.Mutex
 	visitors map[rateLimitKey]*visitor
@@ -378,10 +379,12 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	if len(h.TrustedProxies) > 0 {
 		h.initProxies.Do(func() {
 			for _, proxy := range h.TrustedProxies {
-				if _, ipNet, err := net.ParseCIDR(proxy); err == nil {
-					h.trustedCIDRs = append(h.trustedCIDRs, ipNet)
+				if prefix, err := netip.ParsePrefix(proxy); err == nil {
+					h.trustedCIDRs = append(h.trustedCIDRs, prefix)
+				} else if addr, err := netip.ParseAddr(proxy); err == nil {
+					h.trustedIPs = append(h.trustedIPs, addr)
 				} else {
-					h.trustedIPs = append(h.trustedIPs, proxy)
+					h.trustedStrings = append(h.trustedStrings, proxy)
 				}
 			}
 		})
@@ -393,8 +396,18 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 		}
 	}
 
+	remoteAddr, err := netip.ParseAddr(remoteIP)
+	isTrusted := false
+	if len(h.TrustedProxies) == 0 {
+		isTrusted = true
+	} else if err == nil {
+		isTrusted = h.isTrustedAddr(remoteAddr)
+	} else {
+		isTrusted = h.isTrustedString(remoteIP)
+	}
+
 	// First check if the immediate peer is trusted
-	if !h.isTrustedIP(remoteIP, nil) {
+	if !isTrusted {
 		return remoteIP
 	}
 
@@ -422,15 +435,15 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 			}
 
 			// Validate IP format
-			parsed := net.ParseIP(ip)
-			if len(ip) > 64 || parsed == nil {
+			addr, err := netip.ParseAddr(ip)
+			if len(ip) > 64 || err != nil {
 				continue // Skip invalid IPs
 			}
 
 			// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
 			lastValidIP = ip
 
-			if !h.isTrustedIP(ip, parsed) {
+			if !h.isTrustedAddr(addr) {
 				return ip
 			}
 		}
@@ -442,7 +455,8 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	}
 
 	if header := strings.TrimSpace(r.Header.Get("X-Real-IP")); header != "" {
-		if len(header) <= 64 && net.ParseIP(header) != nil {
+		// Use ParseAddr to validate IP format (no allocation)
+		if _, err := netip.ParseAddr(header); err == nil && len(header) <= 64 {
 			return header
 		}
 	}
@@ -450,26 +464,31 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	return remoteIP
 }
 
-func (h *AuthHandlers) isTrustedIP(ip string, parsedIP net.IP) bool {
+func (h *AuthHandlers) isTrustedAddr(addr netip.Addr) bool {
 	// If no trusted proxies configured, we default to trusting ALL (default-allow).
 	if len(h.TrustedProxies) == 0 {
 		return true
 	}
-	for _, trustedIP := range h.trustedIPs {
-		if trustedIP == ip {
+	for _, trustedAddr := range h.trustedIPs {
+		if trustedAddr == addr {
 			return true
 		}
 	}
-	if len(h.trustedCIDRs) > 0 {
-		if parsedIP == nil {
-			parsedIP = net.ParseIP(ip)
+	for _, prefix := range h.trustedCIDRs {
+		if prefix.Contains(addr) {
+			return true
 		}
-		if parsedIP != nil {
-			for _, ipNet := range h.trustedCIDRs {
-				if ipNet.Contains(parsedIP) {
-					return true
-				}
-			}
+	}
+	return false
+}
+
+func (h *AuthHandlers) isTrustedString(ip string) bool {
+	if len(h.TrustedProxies) == 0 {
+		return true
+	}
+	for _, trusted := range h.trustedStrings {
+		if trusted == ip {
+			return true
 		}
 	}
 	return false
