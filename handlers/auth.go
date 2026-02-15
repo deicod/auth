@@ -437,7 +437,12 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 			// Validate IP format
 			addr, err := netip.ParseAddr(ip)
 			if len(ip) > 64 || err != nil {
-				continue // Skip invalid IPs
+				// SECURITY: If we encounter an invalid IP, the chain of trust is broken.
+				// We must STOP traversing. Skipping it would allow an attacker to "bridge"
+				// the gap between a trusted proxy and a spoofed IP by injecting garbage.
+				// We fall back to the last successfully verified trusted IP (or the immediate peer).
+				slog.Warn("security_event", "action", "ip_verification_failed", "reason", "invalid_ip_in_header", "invalid_part", ip)
+				break
 			}
 
 			// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
