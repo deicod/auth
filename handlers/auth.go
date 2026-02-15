@@ -48,13 +48,14 @@ type AuthHandlers struct {
 	initProxies    sync.Once
 
 	mu       sync.Mutex
-	visitors map[rateLimitKey]*visitor
+	// visitors map stores values instead of pointers to reduce GC pressure and allocations
+	visitors map[rateLimitKey]visitor
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
 	return &AuthHandlers{
 		svc:      svc,
-		visitors: make(map[rateLimitKey]*visitor),
+		visitors: make(map[rateLimitKey]visitor),
 	}
 }
 
@@ -530,17 +531,18 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	now := time.Now()
 	key := rateLimitKey{ip, action}
 	v, exists := h.visitors[key]
-	if !exists || time.Now().After(v.resetAt) {
-		h.visitors[key] = &visitor{count: 1, resetAt: time.Now().Add(window)}
+	if !exists || now.After(v.resetAt) {
+		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window)}
 		// Simple cleanup: if map is too big, purge expired
 		if len(h.visitors) > 1000 {
 			// Only check a fixed number of items to prevent DoS (O(N) scan)
 			// Go map iteration is random, so this is a random sample.
 			checked := 0
 			for k, val := range h.visitors {
-				if time.Now().After(val.resetAt) {
+				if now.After(val.resetAt) {
 					delete(h.visitors, k)
 				}
 				checked++
@@ -567,6 +569,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 		return false
 	}
 	v.count++
+	h.visitors[key] = v
 	return true
 }
 
