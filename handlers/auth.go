@@ -47,7 +47,7 @@ type AuthHandlers struct {
 	trustedStrings []string
 	initProxies    sync.Once
 
-	mu       sync.Mutex
+	mu sync.Mutex
 	// visitors map stores values instead of pointers to reduce GC pressure and allocations
 	visitors map[rateLimitKey]visitor
 }
@@ -416,7 +416,9 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// We prefer X-Forwarded-For (standard), but fall back to X-Real-IP.
 	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
 	// This prevents IP spoofing where a client appends a fake IP to the header.
-	if header := r.Header.Get("X-Forwarded-For"); header != "" {
+	// Join multiple header values into one string, as proxies may send multiple headers
+	// instead of appending to one. Go's Header.Get() only returns the first one.
+	if header := strings.Join(r.Header["X-Forwarded-For"], ", "); header != "" {
 		var lastValidIP string
 		end := len(header)
 		for end > 0 {
