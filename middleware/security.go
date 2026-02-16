@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"net"
 	"net/http"
 	"strings"
 )
@@ -48,11 +47,32 @@ func SecurityHeaders(next http.Handler) http.Handler {
 }
 
 func isLocalhost(host string) bool {
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
+	host = strings.TrimSpace(host)
+	if len(host) == 0 {
+		return false
 	}
-	// Strip brackets from IPv6 literals if present (e.g. "[::1]" -> "::1")
-	host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
-	host = strings.ToLower(strings.TrimSpace(host))
-	return host == "localhost" || host == "127.0.0.1" || host == "::1"
+
+	// Fast path for exact matches
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+
+	// Handle IPv6 with brackets [::1]:8080 or [::1]
+	if host[0] == '[' {
+		if end := strings.LastIndexByte(host, ']'); end != -1 {
+			host = host[1:end]
+		} else {
+			host = host[1:]
+		}
+	} else {
+		// Handle host:port (IPv4 or hostname)
+		// If multiple colons, it's likely IPv6 without brackets (e.g. ::1)
+		if lastColon := strings.LastIndexByte(host, ':'); lastColon != -1 {
+			if strings.IndexByte(host, ':') == lastColon {
+				host = host[:lastColon]
+			}
+		}
+	}
+
+	return host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost")
 }
