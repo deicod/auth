@@ -87,7 +87,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 
 		result, err := h.svc.Register(r.Context(), cmd)
 		if err != nil {
-			slog.Warn("security_event", "action", "register_failed", "ip", cmd.IP, "email", cmd.Email, "username", cmd.Username, "error", err.Error())
+			slog.Warn("security_event", "action", "register_failed", "ip", cmd.IP, "email", truncateLog(cmd.Email), "username", truncateLog(cmd.Username), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
@@ -122,7 +122,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 
 		result, err := h.svc.Login(r.Context(), cmd)
 		if err != nil {
-			slog.Warn("security_event", "action", "login_failed", "ip", cmd.IP, "email", cmd.Email, "error", err.Error())
+			slog.Warn("security_event", "action", "login_failed", "ip", cmd.IP, "email", truncateLog(cmd.Email), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
@@ -221,11 +221,11 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 			return
 		}
 		if err := h.svc.ForgotPassword(r.Context(), core.ForgotPasswordCommand{Email: req.Email}); err != nil {
-			slog.Warn("security_event", "action", "forgot_password_failed", "ip", ip, "email", req.Email, "error", err.Error())
+			slog.Warn("security_event", "action", "forgot_password_failed", "ip", ip, "email", truncateLog(req.Email), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
-		slog.Info("security_event", "action", "forgot_password_requested", "ip", ip, "email", req.Email)
+		slog.Info("security_event", "action", "forgot_password_requested", "ip", ip, "email", truncateLog(req.Email))
 		respondJSON(w, http.StatusAccepted, map[string]string{"status": "email_sent"})
 	}
 }
@@ -280,7 +280,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			NewEmail: req.NewEmail,
 		}
 		if err := h.svc.InitiateEmailChange(r.Context(), cmd); err != nil {
-			slog.Warn("security_event", "action", "initiate_email_change_failed", "ip", ip, "user_id", cmd.UserID, "error", err.Error())
+			slog.Warn("security_event", "action", "initiate_email_change_failed", "ip", ip, "user_id", truncateLog(string(cmd.UserID)), "error", err.Error())
 			h.writeServiceError(w, err)
 			return
 		}
@@ -444,7 +444,7 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 				// We must STOP traversing. Skipping it would allow an attacker to "bridge"
 				// the gap between a trusted proxy and a spoofed IP by injecting garbage.
 				// We fall back to the last successfully verified trusted IP (or the immediate peer).
-				slog.Warn("security_event", "action", "ip_verification_failed", "reason", "invalid_ip_in_header", "invalid_part", ip)
+				slog.Warn("security_event", "action", "ip_verification_failed", "reason", "invalid_ip_in_header", "invalid_part", truncateLog(ip))
 				break
 			}
 
@@ -631,6 +631,25 @@ func sanitizeUserAgent(ua string) string {
 
 // extractIP extracts the IP address from a "IP:Port" string.
 // It avoids allocation by slicing the input string.
+func truncateLog(s string) string {
+	const maxLogLen = 128
+	if len(s) <= maxLogLen {
+		return s
+	}
+	// Check for UTF-8 boundary to avoid cutting in the middle of a character
+	truncated := s[:maxLogLen]
+	if !utf8.RuneStart(s[maxLogLen]) {
+		// Backtrack to find the start of the incomplete rune
+		for i := maxLogLen - 1; i >= 0; i-- {
+			if utf8.RuneStart(s[i]) {
+				truncated = s[:i]
+				break
+			}
+		}
+	}
+	return truncated + "...(truncated)"
+}
+
 func extractIP(remoteAddr string) string {
 	if remoteAddr == "" {
 		return ""
