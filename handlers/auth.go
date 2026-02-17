@@ -49,7 +49,8 @@ type AuthHandlers struct {
 
 	mu sync.Mutex
 	// visitors map stores values instead of pointers to reduce GC pressure and allocations
-	visitors map[rateLimitKey]visitor
+	visitors    map[rateLimitKey]visitor
+	cleanupIter uint64
 }
 
 func New(svc authpkg.Service) *AuthHandlers {
@@ -535,26 +536,33 @@ func bearerToken(header string) (string, bool) {
 }
 
 func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.Duration) bool {
+	// Hoist time.Now() out of the lock to reduce critical section size
+	now := time.Now()
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	now := time.Now()
 	key := rateLimitKey{ip, action}
 	v, exists := h.visitors[key]
 	if !exists || now.After(v.resetAt) {
 		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window)}
-		// Simple cleanup: if map is too big, purge expired
+		// Simple cleanup: if map is too big, purge expired.
+		// Optimization: Check only every 64th request to amortize the cost of map iteration.
+		// This prevents the cleanup loop from running on every request when the map is full.
 		if len(h.visitors) > 1000 {
-			// Only check a fixed number of items to prevent DoS (O(N) scan)
-			// Go map iteration is random, so this is a random sample.
-			checked := 0
-			for k, val := range h.visitors {
-				if now.After(val.resetAt) {
-					delete(h.visitors, k)
-				}
-				checked++
-				if checked >= 50 {
-					break
+			h.cleanupIter++
+			if h.cleanupIter&0x3F == 0 {
+				// Only check a fixed number of items to prevent DoS (O(N) scan)
+				// Go map iteration is random, so this is a random sample.
+				checked := 0
+				for k, val := range h.visitors {
+					if now.After(val.resetAt) {
+						delete(h.visitors, k)
+					}
+					checked++
+					if checked >= 50 {
+						break
+					}
 				}
 			}
 
