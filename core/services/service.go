@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/mail"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -589,10 +588,19 @@ func isValidEmail(email string) bool {
 	return addr.Address == email
 }
 
-var usernameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{3,30}$`)
-
+// isValidUsername checks if the username is 3-30 chars long and alphanumeric (plus _ and -).
+// This manual check is significantly faster than using a regular expression.
 func isValidUsername(username string) bool {
-	return usernameRegex.MatchString(username)
+	if len(username) < 3 || len(username) > 30 {
+		return false
+	}
+	for i := 0; i < len(username); i++ {
+		c := username[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
 }
 
 func validatePassword(password string, cfg config.Password) error {
