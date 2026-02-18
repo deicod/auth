@@ -55,15 +55,18 @@ func TestDoS_RateLimit_Cleanup(t *testing.T) {
 
 func TestDoS_RateLimit_MapGrowth(t *testing.T) {
 	// Verify that the map stops growing at some point (Hard Limit)
-	// The current implementation DOES NOT have a hard limit (other than memory).
+	// The new implementation limits to 50,000.
 
 	svc := &fakeService{}
 	h := New(svc)
 
-	// Fill to 5500 (above hard limit 5000)
-	limit := 5500
+	// Fill to 50500 (above hard limit 50000)
+	const maxLimit = 50000
+	limit := maxLimit + 500
 	future := time.Now().Add(time.Hour)
 	for i := 0; i < limit; i++ {
+		// Use a simple string generation to avoid excessive allocs in test setup
+		// We use a prefix to ensure uniqueness
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
 		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
 	}
@@ -74,7 +77,7 @@ func TestDoS_RateLimit_MapGrowth(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Login().ServeHTTP(rr, req)
 
-	if len(h.visitors) > 5000 {
-		t.Errorf("Map size %d exceeded hard limit 5000", len(h.visitors))
+	if len(h.visitors) > maxLimit {
+		t.Errorf("Map size %d exceeded hard limit %d", len(h.visitors), maxLimit)
 	}
 }
