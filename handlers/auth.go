@@ -63,7 +63,7 @@ func New(svc authpkg.Service) *AuthHandlers {
 func (h *AuthHandlers) Register() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "register", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -100,7 +100,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 func (h *AuthHandlers) Login() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "login", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -183,7 +183,7 @@ func (h *AuthHandlers) Me() http.HandlerFunc {
 func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "verify_email", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -209,7 +209,7 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "forgot_password", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -234,7 +234,7 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "reset_password", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -261,7 +261,7 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "initiate_email_change", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -293,7 +293,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := h.clientIP(r)
-		if !h.checkRateLimit(ip, "strict", loginRateLimit, loginRateWindow) {
+		if !h.checkRateLimit(ip, "confirm_email_change", loginRateLimit, loginRateWindow) {
 			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 			return
 		}
@@ -566,13 +566,28 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 				}
 			}
 
-			// Hard limit to prevent memory exhaustion
-			if len(h.visitors) > 5000 {
-				// Evict random items until we are back under the limit
-				for k := range h.visitors {
-					delete(h.visitors, k)
-					if len(h.visitors) <= 5000 {
+			// Hard limit to prevent memory exhaustion.
+			// Increased to 50,000 to better handle distributed attacks.
+			const maxVisitors = 50000
+			if len(h.visitors) > maxVisitors {
+				// First pass: Prioritize evicting expired items to preserve active users
+				for k, val := range h.visitors {
+					if now.After(val.resetAt) {
+						delete(h.visitors, k)
+					}
+					// If we've cleared enough space, stop
+					if len(h.visitors) <= maxVisitors {
 						break
+					}
+				}
+
+				// Second pass: If still over limit, evict random items
+				if len(h.visitors) > maxVisitors {
+					for k := range h.visitors {
+						delete(h.visitors, k)
+						if len(h.visitors) <= maxVisitors {
+							break
+						}
 					}
 				}
 			}
