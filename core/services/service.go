@@ -596,7 +596,7 @@ func isValidUsername(username string) bool {
 	}
 	for i := 0; i < len(username); i++ {
 		c := username[i]
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '-' {
 			return false
 		}
 	}
