@@ -140,6 +140,14 @@ func TestEmailChangeFlow(t *testing.T) {
 	if err := svc.InitiateEmailChange(ctx, cmd); err != nil {
 		t.Fatalf("initiate email change failed: %v", err)
 	}
+
+	// Wait for async email
+	select {
+	case <-deps.mailer.notifyChange:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for email change confirmation")
+	}
+
 	if len(deps.mailer.emailChangeTokens) == 0 {
 		t.Fatalf("expected email change token")
 	}
@@ -449,7 +457,7 @@ func newTestService(t *testing.T) (*AuthService, *testDeps) {
 		verifications: newMemVerificationStore(),
 		resets:        newMemPasswordResetStore(),
 		changes:       newMemEmailChangeStore(),
-		mailer:        &captureMailer{notifyReset: make(chan struct{}, 1)},
+		mailer:        &captureMailer{notifyReset: make(chan struct{}, 1), notifyChange: make(chan struct{}, 1)},
 	}
 
 	svc, err := New(Dependencies{
@@ -503,6 +511,7 @@ type captureMailer struct {
 	emailChangeTokens  []string
 	changeAlerts       []string
 	notifyReset        chan struct{}
+	notifyChange       chan struct{}
 }
 
 func (c *captureMailer) SendVerification(_ context.Context, _ core.User, token string) error {
@@ -523,6 +532,12 @@ func (c *captureMailer) SendPasswordReset(_ context.Context, _ core.User, token 
 
 func (c *captureMailer) SendEmailChange(_ context.Context, _ core.User, _ string, token string) error {
 	c.emailChangeTokens = append(c.emailChangeTokens, token)
+	if c.notifyChange != nil {
+		select {
+		case c.notifyChange <- struct{}{}:
+		default:
+		}
+	}
 	return nil
 }
 
