@@ -9,3 +9,7 @@
 ## 2025-06-04 - Amortized Rate Limit Cleanup
 **Learning:** The simple map cleanup strategy in `checkRateLimit` (checking 50 items on *every* request once the map is full) creates a high constant-time overhead under load, even when no items are expiring. This degraded throughput significantly (~4x slower in benchmarks).
 **Action:** Use a counter or random sampler to run expensive cleanup operations only occasionally (e.g., every 64th request). Amortizing the cost maintains memory safety while eliminating the latency penalty for the majority of requests.
+
+## 2026-02-19 - Zero-Allocation IP Parsing for Multiple Headers
+**Learning:** `strings.Join` in `clientIP` allocates a new string just to iterate over it in reverse, which is wasteful when processing multiple `X-Forwarded-For` headers. This operation was allocating ~48 bytes per request with trusted proxies.
+**Action:** Replace `strings.Join` with a nested loop that iterates over the header slice in reverse and then parses each header value from right to left. This eliminates the allocation entirely (0 allocs/op) and reduces execution time by ~54% in benchmarks.

@@ -417,45 +417,50 @@ func (h *AuthHandlers) clientIP(r *http.Request) string {
 	// We prefer X-Forwarded-For (standard), but fall back to X-Real-IP.
 	// SECURITY: Iterate from RIGHT to LEFT to find the first untrusted IP.
 	// This prevents IP spoofing where a client appends a fake IP to the header.
-	// Join multiple header values into one string, as proxies may send multiple headers
-	// instead of appending to one. Go's Header.Get() only returns the first one.
-	if header := strings.Join(r.Header["X-Forwarded-For"], ", "); header != "" {
+	// Instead of joining multiple headers (which causes allocation), we iterate backwards.
+	if xff := r.Header["X-Forwarded-For"]; len(xff) > 0 {
 		var lastValidIP string
-		end := len(header)
-		for end > 0 {
-			start := strings.LastIndexByte(header[:end], ',')
-			var part string
-			if start == -1 {
-				part = header[:end]
-				end = 0
-			} else {
-				part = header[start+1 : end]
-				end = start
-			}
+		// Iterate over headers in reverse (proxies append new headers to the end)
+		for i := len(xff) - 1; i >= 0; i-- {
+			header := xff[i]
+			end := len(header)
+			// Iterate over IPs in this header in reverse
+			for end > 0 {
+				start := strings.LastIndexByte(header[:end], ',')
+				var part string
+				if start == -1 {
+					part = header[:end]
+					end = 0
+				} else {
+					part = header[start+1 : end]
+					end = start
+				}
 
-			ip := strings.TrimSpace(part)
-			if ip == "" {
-				continue
-			}
+				ip := strings.TrimSpace(part)
+				if ip == "" {
+					continue
+				}
 
-			// Validate IP format
-			addr, err := netip.ParseAddr(ip)
-			if len(ip) > 64 || err != nil {
-				// SECURITY: If we encounter an invalid IP, the chain of trust is broken.
-				// We must STOP traversing. Skipping it would allow an attacker to "bridge"
-				// the gap between a trusted proxy and a spoofed IP by injecting garbage.
-				// We fall back to the last successfully verified trusted IP (or the immediate peer).
-				slog.Warn("security_event", "action", "ip_verification_failed", "reason", "invalid_ip_in_header", "invalid_part", truncateLog(ip))
-				break
-			}
+				// Validate IP format
+				addr, err := netip.ParseAddr(ip)
+				if len(ip) > 64 || err != nil {
+					// SECURITY: If we encounter an invalid IP, the chain of trust is broken.
+					// We must STOP traversing. Skipping it would allow an attacker to "bridge"
+					// the gap between a trusted proxy and a spoofed IP by injecting garbage.
+					// We fall back to the last successfully verified trusted IP (or the immediate peer).
+					slog.Warn("security_event", "action", "ip_verification_failed", "reason", "invalid_ip_in_header", "invalid_part", truncateLog(ip))
+					goto Done
+				}
 
-			// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
-			lastValidIP = ip
+				// Store the last valid IP encountered (which is the leftmost valid IP so far because we iterate backward)
+				lastValidIP = ip
 
-			if !h.isTrustedAddr(addr) {
-				return ip
+				if !h.isTrustedAddr(addr) {
+					return ip
+				}
 			}
 		}
+	Done:
 		// If we reach here, all IPs in the chain are trusted.
 		// Return the leftmost valid IP (the original client according to the chain).
 		if lastValidIP != "" {
