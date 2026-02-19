@@ -17,7 +17,7 @@ func BenchmarkClientIP_MultipleHeaders(b *testing.B) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.RemoteAddr = "1.2.3.4:1234"
 	// Simulate multiple headers as added by a chain of proxies
-	// The current implementation joins these into "10.0.0.1, 10.0.0.2, 10.0.0.3, 10.0.0.4"
+	// These multiple values represent a chain of client/proxy IPs: "10.0.0.1, 10.0.0.2, 10.0.0.3, 10.0.0.4"
 	req.Header.Add("X-Forwarded-For", "10.0.0.1")
 	req.Header.Add("X-Forwarded-For", "10.0.0.2, 10.0.0.3")
 	req.Header.Add("X-Forwarded-For", "10.0.0.4")
