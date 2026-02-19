@@ -364,13 +364,24 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 		return err
 	}
 
-	// SECURITY: Notify the old email address about the requested change.
-	// Best-effort: log error but don't fail the request.
-	if err := s.mailer.SendEmailChangeAlert(ctx, user, newEmail); err != nil {
-		log.Printf("failed to send email change alert to user %s: %v", user.ID, err)
-	}
+	// SECURITY: Send emails asynchronously to prevent blocking the request and potential DoS (held connections).
+	// Use a detached context with timeout to ensure the task completes even if the request context is cancelled.
+	// NOTE: Any errors during email sending are logged but not returned to the caller, meaning the client receives success even if delivery fails.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), asyncTaskTimeout)
+		defer cancel()
 
-	return s.mailer.SendEmailChange(ctx, user, newEmail, token)
+		// Notify the old email address about the requested change.
+		if err := s.mailer.SendEmailChangeAlert(ctx, user, newEmail); err != nil {
+			log.Printf("failed to send email change alert to user %s: %v", user.ID, err)
+		}
+
+		if err := s.mailer.SendEmailChange(ctx, user, newEmail, token); err != nil {
+			log.Printf("failed to send email change confirmation to user %s: %v", user.ID, err)
+		}
+	}()
+
+	return nil
 }
 
 func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand) (core.ChangeEmailResult, error) {
