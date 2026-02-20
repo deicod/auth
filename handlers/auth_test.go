@@ -333,20 +333,34 @@ func TestInitiateEmailChangeHandler(t *testing.T) {
 	tests := []struct {
 		name       string
 		body       interface{}
+		headerKey  string
+		headerVal  string
 		mockSetup  func(*fakeService)
 		wantStatus int
 	}{
 		{
-			name: "Success",
-			body: map[string]string{"user_id": "1", "password": "p", "new_email": "n@e.com"},
+			name:       "Success",
+			body:       map[string]string{"user_id": "1", "password": "p", "new_email": "n@e.com"},
+			headerKey:  "Authorization",
+			headerVal:  "Bearer valid-token",
 			mockSetup: func(f *fakeService) {
+				f.meUser = core.UserPublic{ID: "1"}
 			},
 			wantStatus: http.StatusAccepted,
 		},
 		{
-			name: "InvalidCredentials",
-			body: map[string]string{"user_id": "1", "password": "wrong", "new_email": "n@e.com"},
+			name:       "MissingToken",
+			body:       map[string]string{"user_id": "1", "password": "p", "new_email": "n@e.com"},
+			mockSetup:  func(f *fakeService) {},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "InvalidCredentials",
+			body:       map[string]string{"user_id": "1", "password": "wrong", "new_email": "n@e.com"},
+			headerKey:  "Authorization",
+			headerVal:  "Bearer valid-token",
 			mockSetup: func(f *fakeService) {
+				f.meUser = core.UserPublic{ID: "1"}
 				f.initEmailChangeErr = core.ErrInvalidCredentials
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -361,6 +375,9 @@ func TestInitiateEmailChangeHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/email-change", bytes.NewReader(body))
+			if tt.headerKey != "" {
+				req.Header.Set(tt.headerKey, tt.headerVal)
+			}
 			rr := httptest.NewRecorder()
 
 			h.InitiateEmailChange().ServeHTTP(rr, req)
