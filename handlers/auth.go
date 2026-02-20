@@ -575,13 +575,17 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 			// Increased to 50,000 to better handle distributed attacks.
 			const maxVisitors = 50000
 			if len(h.visitors) > maxVisitors {
-				// First pass: Prioritize evicting expired items to preserve active users
+				// First pass: Prioritize evicting expired items to preserve active users.
+				// Limit the scan to avoid O(N) latency spikes when the map is full of active users.
+				// Under attack, this prevents the loop from iterating 50k+ items without finding anything to delete.
+				scanned := 0
 				for k, val := range h.visitors {
 					if now.After(val.resetAt) {
 						delete(h.visitors, k)
 					}
-					// If we've cleared enough space, stop
-					if len(h.visitors) <= maxVisitors {
+					scanned++
+					// If we've cleared enough space OR scanned too many items, stop.
+					if len(h.visitors) <= maxVisitors || scanned >= 100 {
 						break
 					}
 				}
