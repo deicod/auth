@@ -266,7 +266,26 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			return
 		}
 
+		// Security: Require active session to initiate email change.
+		// This prevents unauthorized users (even with a stolen password) from initiating
+		// an email change without first logging in (which triggers its own checks/alerts).
+		// It also ensures the action is associated with a verified session.
+		token, ok := bearerToken(r.Header.Get("Authorization"))
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, errors.New("missing bearer token"))
+			return
+		}
+		user, _, err := h.svc.AuthenticateSession(r.Context(), token)
+		if err != nil {
+			// Log authentication failure for this sensitive action
+			slog.Warn("security_event", "action", "initiate_email_change_auth_failed", "ip", ip, "error", err.Error())
+			h.writeServiceError(w, err)
+			return
+		}
+
 		var req struct {
+			// UserID is intentionally ignored from the body to prevent ID spoofing.
+			// The user can only change the email for the authenticated session.
 			UserID   string `json:"user_id"`
 			Password string `json:"password"`
 			NewEmail string `json:"new_email"`
@@ -276,7 +295,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			return
 		}
 		cmd := core.ChangeEmailCommand{
-			UserID:   core.ID(req.UserID),
+			UserID:   user.ID, // Use ID from session
 			Password: req.Password,
 			NewEmail: req.NewEmail,
 		}

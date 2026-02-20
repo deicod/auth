@@ -143,12 +143,15 @@ func TestAuditLogging(t *testing.T) {
 
 	t.Run("InitiateEmailChangeSuccess", func(t *testing.T) {
 		buf.Reset()
-		svc := &fakeService{} // Returns nil error by default
+		svc := &fakeService{
+			meUser: core.UserPublic{ID: "user123"},
+		}
 		h := New(svc)
 
 		body := map[string]string{"user_id": "user123", "password": "password", "new_email": "new@example.com"}
 		jsonBody, _ := json.Marshal(body)
 		req := httptest.NewRequest(http.MethodPost, "/auth/email-change", bytes.NewReader(jsonBody))
+		req.Header.Set("Authorization", "Bearer valid-token")
 		req.RemoteAddr = "10.0.0.3:1234"
 		rr := httptest.NewRecorder()
 
