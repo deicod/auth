@@ -339,10 +339,10 @@ func TestInitiateEmailChangeHandler(t *testing.T) {
 		wantStatus int
 	}{
 		{
-			name:       "Success",
-			body:       map[string]string{"user_id": "1", "password": "p", "new_email": "n@e.com"},
-			headerKey:  "Authorization",
-			headerVal:  "Bearer valid-token",
+			name:      "Success",
+			body:      map[string]string{"user_id": "1", "password": "p", "new_email": "n@e.com"},
+			headerKey: "Authorization",
+			headerVal: "Bearer valid-token",
 			mockSetup: func(f *fakeService) {
 				f.meUser = core.UserPublic{ID: "1"}
 			},
@@ -355,10 +355,10 @@ func TestInitiateEmailChangeHandler(t *testing.T) {
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
-			name:       "InvalidCredentials",
-			body:       map[string]string{"user_id": "1", "password": "wrong", "new_email": "n@e.com"},
-			headerKey:  "Authorization",
-			headerVal:  "Bearer valid-token",
+			name:      "InvalidCredentials",
+			body:      map[string]string{"user_id": "1", "password": "wrong", "new_email": "n@e.com"},
+			headerKey: "Authorization",
+			headerVal: "Bearer valid-token",
 			mockSetup: func(f *fakeService) {
 				f.meUser = core.UserPublic{ID: "1"}
 				f.initEmailChangeErr = core.ErrInvalidCredentials
