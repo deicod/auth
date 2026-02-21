@@ -24,7 +24,7 @@ func TestSecurityHeaders_Enhancements(t *testing.T) {
 	expectedHeaders := map[string]string{
 		"X-Permitted-Cross-Domain-Policies": "none",
 		"Cross-Origin-Opener-Policy":        "same-origin",
-		"Cross-Origin-Resource-Policy":        "same-origin",
+		"Cross-Origin-Resource-Policy":      "same-origin",
 		"X-Download-Options":                "noopen",
 	}
 

@@ -5,6 +5,21 @@ import (
 	"strings"
 )
 
+// Pre-allocate header value slices to avoid allocation on every request.
+var (
+	headerXContentOptions         = []string{"nosniff"}
+	headerXFrameOptions           = []string{"DENY"}
+	headerXXssProtection          = []string{"1; mode=block"} // Canonical key is X-Xss-Protection
+	headerReferrerPolicy          = []string{"strict-origin-when-cross-origin"}
+	headerCSP                     = []string{"default-src 'none'; frame-ancestors 'none'"}
+	headerCOOP                    = []string{"same-origin"}
+	headerCORP                    = []string{"same-origin"}
+	headerXPermittedPolicies      = []string{"none"}
+	headerXDownloadOptions        = []string{"noopen"}
+	headerPermissionsPolicy       = []string{"accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"}
+	headerStrictTransportSecurity = []string{"max-age=63072000; includeSubDomains"}
+)
+
 // SecurityHeaders adds standard security headers to the response.
 // This middleware should be applied to all routes to improve defense-in-depth.
 //
@@ -17,29 +32,33 @@ import (
 //	}
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+
 		// Prevent MIME-sniffing
-		w.Header().Set("X-Content-Type-Options", "nosniff")
+		h["X-Content-Type-Options"] = headerXContentOptions
 		// Prevent clickjacking
-		w.Header().Set("X-Frame-Options", "DENY")
+		h["X-Frame-Options"] = headerXFrameOptions
 		// Enable XSS filtering in browsers that support it
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		// Note: We use the canonical key "X-Xss-Protection" because direct map assignment bypasses canonicalization.
+		h["X-Xss-Protection"] = headerXXssProtection
 		// Control referrer information
-		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		h["Referrer-Policy"] = headerReferrerPolicy
 		// Content Security Policy
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+		h["Content-Security-Policy"] = headerCSP
 		// Prevent other sites from opening the app in a way that allows cross-origin interactions
-		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		h["Cross-Origin-Opener-Policy"] = headerCOOP
 		// Prevent other sites from loading resources from the app
-		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
+		h["Cross-Origin-Resource-Policy"] = headerCORP
 		// Prevent Flash/PDF from loading data from the domain
-		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
+		h["X-Permitted-Cross-Domain-Policies"] = headerXPermittedPolicies
 		// Prevent IE from executing downloads in site context
-		w.Header().Set("X-Download-Options", "noopen")
+		h["X-Download-Options"] = headerXDownloadOptions
 		// Permissions Policy (formerly Feature Policy) to disable sensitive features
-		w.Header().Set("Permissions-Policy", "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")
+		h["Permissions-Policy"] = headerPermissionsPolicy
+
 		// Enforce HTTPS, but skip on localhost to avoid locking dev environments
 		if !isLocalhost(r.Host) {
-			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+			h["Strict-Transport-Security"] = headerStrictTransportSecurity
 		}
 
 		next.ServeHTTP(w, r)

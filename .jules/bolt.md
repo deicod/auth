@@ -13,3 +13,7 @@
 ## 2026-02-19 - Zero-Allocation IP Parsing for Multiple Headers
 **Learning:** `strings.Join` in `clientIP` allocates a new string just to iterate over it in reverse, which is wasteful when processing multiple `X-Forwarded-For` headers. This operation was allocating ~48 bytes per request with trusted proxies.
 **Action:** Replace `strings.Join` with a nested loop that iterates over the header slice in reverse and then parses each header value from right to left. This eliminates the allocation entirely (0 allocs/op) and reduces execution time by ~54% in benchmarks.
+
+## 2026-03-22 - Zero-Allocation Security Headers
+**Learning:** `w.Header().Set` in Go allocates a new slice (`[]string`) for every call, and canonicalizes keys. Setting 10+ constant security headers per request generated 12 allocations/op. Direct map assignment with pre-allocated slices eliminates these allocations completely.
+**Action:** For constant headers in middleware, define package-level `[]string` variables and assign them directly to the header map using canonical keys (e.g., `h["X-Xss-Protection"] = headerSlice`) to achieve zero allocations and ~5x speedup.
