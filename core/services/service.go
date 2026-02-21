@@ -37,6 +37,12 @@ const (
 	asyncTaskTimeout = 30 * time.Second
 )
 
+var (
+	// Timeout for synchronous tasks like email sending in Register.
+	// Variable to allow overriding in tests.
+	syncTaskTimeout = 5 * time.Second
+)
+
 func New(deps Dependencies) (*AuthService, error) {
 	if deps.Stores.Users == nil || deps.Stores.Sessions == nil || deps.Stores.Verifications == nil || deps.Stores.PasswordResets == nil || deps.Stores.EmailChanges == nil {
 		return nil, errors.New("all stores are required")
@@ -141,7 +147,13 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 		_ = s.stores.Users.DeleteByID(ctx, user.ID)
 		return core.AuthResult{}, err
 	}
-	if err := s.mailer.SendVerification(ctx, user, token); err != nil {
+	// SECURITY: Use a timeout for synchronous email sending to prevent DoS from slow SMTP servers.
+	// If the client disconnects, ctx is cancelled and we abort.
+	// If the server is slow, we abort after syncTaskTimeout to free resources.
+	emailCtx, cancel := context.WithTimeout(ctx, syncTaskTimeout)
+	defer cancel()
+
+	if err := s.mailer.SendVerification(emailCtx, user, token); err != nil {
 		_ = s.stores.Verifications.DeleteByID(ctx, verificationID)
 		_ = s.stores.Users.DeleteByID(ctx, user.ID)
 		return core.AuthResult{}, err
