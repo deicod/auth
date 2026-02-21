@@ -26,6 +26,8 @@ type AuthService struct {
 	passwordCfg    config.Password
 	mailer         email.Sender
 	dummyHash      string
+	// Timeout for synchronous tasks like email sending in Register.
+	syncTaskTimeout time.Duration
 }
 
 const (
@@ -35,12 +37,6 @@ const (
 	maxTokenLength = 1024
 	// Timeout for async tasks like email sending to prevent goroutine leaks.
 	asyncTaskTimeout = 30 * time.Second
-)
-
-var (
-	// Timeout for synchronous tasks like email sending in Register.
-	// Variable to allow overriding in tests.
-	syncTaskTimeout = 5 * time.Second
 )
 
 func New(deps Dependencies) (*AuthService, error) {
@@ -85,15 +81,16 @@ func New(deps Dependencies) (*AuthService, error) {
 	}
 
 	svc := &AuthService{
-		stores:         deps.Stores,
-		hasher:         deps.Hasher,
-		sessionTokens:  deps.SessionTokens,
-		tokenGenerator: deps.TokenGenerator,
-		sessionCfg:     sessionCfg,
-		tokenCfg:       tokenCfg,
-		passwordCfg:    passwordCfg,
-		mailer:         mailer,
-		dummyHash:      dummy,
+		stores:          deps.Stores,
+		hasher:          deps.Hasher,
+		sessionTokens:   deps.SessionTokens,
+		tokenGenerator:  deps.TokenGenerator,
+		sessionCfg:      sessionCfg,
+		tokenCfg:        tokenCfg,
+		passwordCfg:     passwordCfg,
+		mailer:          mailer,
+		dummyHash:       dummy,
+		syncTaskTimeout: 5 * time.Second,
 	}
 	return svc, nil
 }
@@ -150,7 +147,7 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 	// SECURITY: Use a timeout for synchronous email sending to prevent DoS from slow SMTP servers.
 	// If the client disconnects, ctx is cancelled and we abort.
 	// If the server is slow, we abort after syncTaskTimeout to free resources.
-	emailCtx, cancel := context.WithTimeout(ctx, syncTaskTimeout)
+	emailCtx, cancel := context.WithTimeout(ctx, s.syncTaskTimeout)
 	defer cancel()
 
 	if err := s.mailer.SendVerification(emailCtx, user, token); err != nil {

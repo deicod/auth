@@ -24,12 +24,11 @@ func (s *slowVerificationMailer) SendVerification(ctx context.Context, user core
 }
 
 func TestRegisterTimeout(t *testing.T) {
-	// Temporarily reduce timeout for faster test
-	origTimeout := syncTaskTimeout
-	syncTaskTimeout = 100 * time.Millisecond
-	defer func() { syncTaskTimeout = origTimeout }()
-
 	svc, deps := newTestService(t)
+
+	// Temporarily reduce timeout for faster test
+	svc.syncTaskTimeout = 100 * time.Millisecond
+
 	// Replace mailer with slow mailer that takes 200ms (longer than 100ms timeout)
 	svc.mailer = &slowVerificationMailer{
 		captureMailer: deps.mailer,
