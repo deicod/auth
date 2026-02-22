@@ -871,3 +871,26 @@ func TestForgotPasswordEmailTooLong(t *testing.T) {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
 	}
 }
+
+func TestForgotPassword_UserNotFound(t *testing.T) {
+	svc, deps := newTestService(t)
+	ctx := context.Background()
+
+	// Ensure no error is returned to prevent enumeration
+	err := svc.ForgotPassword(ctx, core.ForgotPasswordCommand{Email: "nonexistent@example.com"})
+	if err != nil {
+		t.Fatalf("expected nil error (success) for non-existent user, got: %v", err)
+	}
+
+	// Verify no email is sent (wait for potential async processing)
+	select {
+	case <-deps.mailer.notifyReset:
+		t.Fatal("expected no reset email notification for non-existent user")
+	case <-time.After(50 * time.Millisecond):
+		// Success: no email sent within timeout
+	}
+
+	if len(deps.mailer.resetTokens) > 0 {
+		t.Fatalf("expected no reset tokens, got %d", len(deps.mailer.resetTokens))
+	}
+}

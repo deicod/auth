@@ -261,22 +261,23 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 	}
 
 	email := normalizeEmail(cmd.Email)
-	user, err := s.stores.Users.FindByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, core.ErrUserNotFound) {
-			return nil
-		}
-		return err
-	}
 
 	// Generate token and send email asynchronously to prevent timing attacks (username enumeration).
-	// We must move BOTH the DB write and the email sending to the background goroutine.
-	// If the DB write remains synchronous, an attacker can distinguish "User Found" (slow DB write)
-	// from "User Not Found" (fast return) by measuring response latency.
+	// We must move BOTH the user lookup, DB write and the email sending to the background goroutine.
+	// If the user lookup remains synchronous, an attacker can distinguish "User Found"
+	// from "User Not Found" by measuring response latency.
 	go func() {
 		// Use a detached context with timeout for the background operation
 		ctx, cancel := context.WithTimeout(context.Background(), asyncTaskTimeout)
 		defer cancel()
+
+		user, err := s.stores.Users.FindByEmail(ctx, email)
+		if err != nil {
+			if !errors.Is(err, core.ErrUserNotFound) {
+				log.Printf("failed to find user for password reset: %v", err)
+			}
+			return
+		}
 
 		token, err := s.issuePasswordReset(ctx, user)
 		if err != nil {
