@@ -26,16 +26,13 @@ const (
 var insecureProxyWarningOnce sync.Once
 
 type visitor struct {
-	count int
-	// resetAt stores expiration time in UnixNano to avoid pointers in the struct
-	resetAt int64
+	count   int
+	resetAt time.Time
 }
 
 type rateLimitKey struct {
-	// ip is stored as [16]byte (pointer-free) to avoid GC scanning
-	ip [16]byte
-	// action is a hash of the action string (pointer-free)
-	action uint64
+	ip     string
+	action string
 }
 
 type AuthHandlers struct {
@@ -51,8 +48,7 @@ type AuthHandlers struct {
 	initProxies    sync.Once
 
 	mu sync.Mutex
-	// visitors map stores values instead of pointers to reduce GC pressure and allocations.
-	// Both key and value are pointer-free, so GC does not need to scan the map buckets.
+	// visitors map stores values instead of pointers to reduce GC pressure and allocations
 	visitors    map[rateLimitKey]visitor
 	cleanupIter uint64
 }
@@ -574,19 +570,14 @@ func bearerToken(header string) (string, bool) {
 func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.Duration) bool {
 	// Hoist time.Now() out of the lock to reduce critical section size
 	now := time.Now()
-	nowNano := now.UnixNano()
-
-	// Compute key outside lock (includes IP parsing and hashing)
-	keyIP := parseIPKey(ip)
-	keyAction := hashAction(action)
-	key := rateLimitKey{ip: keyIP, action: keyAction}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	key := rateLimitKey{ip, action}
 	v, exists := h.visitors[key]
-	if !exists || nowNano > v.resetAt {
-		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window).UnixNano()}
+	if !exists || now.After(v.resetAt) {
+		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window)}
 		// Simple cleanup: if map is too big, purge expired.
 		// Optimization: Check only every 64th request to amortize the cost of map iteration.
 		// This prevents the cleanup loop from running on every request when the map is full.
@@ -597,7 +588,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 				// Go map iteration is random, so this is a random sample.
 				checked := 0
 				for k, val := range h.visitors {
-					if nowNano > val.resetAt {
+					if now.After(val.resetAt) {
 						delete(h.visitors, k)
 					}
 					checked++
@@ -616,7 +607,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 				// Under attack, this prevents the loop from iterating 50k+ items without finding anything to delete.
 				scanned := 0
 				for k, val := range h.visitors {
-					if nowNano > val.resetAt {
+					if now.After(val.resetAt) {
 						delete(h.visitors, k)
 					}
 					scanned++
@@ -646,46 +637,6 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 	v.count++
 	h.visitors[key] = v
 	return true
-}
-
-// hashAction computes FNV-1a hash of the action string.
-// This allows us to store uint64 in the map key instead of string, making it pointer-free.
-func hashAction(s string) uint64 {
-	const offset64 = 14695981039346656037
-	const prime64 = 1099511628211
-	var hash uint64 = offset64
-	for i := 0; i < len(s); i++ {
-		hash ^= uint64(s[i])
-		hash *= prime64
-	}
-	return hash
-}
-
-// parseIPKey converts an IP string to a [16]byte array for use as a map key.
-// This ensures the key is completely pointer-free, allowing the GC to skip scanning the map.
-func parseIPKey(ip string) [16]byte {
-	// Fast path for valid IPs
-	if addr, err := netip.ParseAddr(ip); err == nil {
-		return addr.As16()
-	}
-
-	// Fallback for non-standard IPs (e.g. "localhost", unix socket):
-	// Hash or copy the string into 16 bytes.
-	var buf [16]byte
-	if len(ip) <= 16 {
-		copy(buf[:], ip)
-	} else {
-		// Use FNV-1a based hash to fill 16 bytes
-		h1 := hashAction(ip)
-		// simple mixing for second half
-		h2 := h1 * 1099511628211
-		// manual BigEndian put to avoid "encoding/binary" import if not present
-		for i := 0; i < 8; i++ {
-			buf[i] = byte(h1 >> (56 - i*8))
-			buf[i+8] = byte(h2 >> (56 - i*8))
-		}
-	}
-	return buf
 }
 
 // sanitizeUserAgent truncates the user agent string to 512 bytes
