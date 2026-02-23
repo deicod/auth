@@ -19,10 +19,11 @@ func TestDoS_RateLimit_Cleanup(t *testing.T) {
 	// They are NOT expired, so the cleanup loop will visit them but not delete them.
 	// We use 100,000 items.
 	initialSize := 100000
-	future := time.Now().Add(time.Hour)
+	future := time.Now().Add(time.Hour).UnixNano()
+	strictHash := hashAction("strict")
 	for i := 0; i < initialSize; i++ {
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
-		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
+		h.visitors[rateLimitKey{ip: parseIPKey(ip), action: strictHash}] = visitor{count: 1, resetAt: future}
 	}
 
 	// Now make ONE request from a new IP
@@ -63,12 +64,13 @@ func TestDoS_RateLimit_MapGrowth(t *testing.T) {
 	// Fill to 50500 (above hard limit 50000)
 	const maxLimit = 50000
 	limit := maxLimit + 500
-	future := time.Now().Add(time.Hour)
+	future := time.Now().Add(time.Hour).UnixNano()
+	strictHash := hashAction("strict")
 	for i := 0; i < limit; i++ {
 		// Use a simple string generation to avoid excessive allocs in test setup
 		// We use a prefix to ensure uniqueness
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
-		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
+		h.visitors[rateLimitKey{ip: parseIPKey(ip), action: strictHash}] = visitor{count: 1, resetAt: future}
 	}
 
 	// Add one more
