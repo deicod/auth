@@ -597,8 +597,12 @@ func (m *memUserStore) FindByEmail(_ context.Context, email string) (core.User, 
 }
 
 func (m *memUserStore) FindByUsername(_ context.Context, username string) (core.User, error) {
-	if id, ok := m.usernameIndex[username]; ok {
-		return m.users[id], nil
+	// Simulate case-insensitive DB lookup
+	usernameLower := strings.ToLower(username)
+	for u, id := range m.usernameIndex {
+		if strings.ToLower(u) == usernameLower {
+			return m.users[id], nil
+		}
 	}
 	return core.User{}, core.ErrUserNotFound
 }
@@ -869,6 +873,28 @@ func TestForgotPasswordEmailTooLong(t *testing.T) {
 	}
 	if !errors.Is(err, core.ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestRegisterDuplicateUsernameCaseInsensitive(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	// Register "Admin"
+	if _, err := svc.Register(ctx, core.RegisterCommand{Email: "admin@example.com", Username: "Admin", Password: "password123"}); err != nil {
+		t.Fatalf("register Admin failed: %v", err)
+	}
+
+	// Try to register "admin" (lowercase) - should fail
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "other@example.com", Username: "admin", Password: "password123"})
+	if !errors.Is(err, core.ErrUsernameExists) {
+		t.Fatalf("expected ErrUsernameExists for 'admin' when 'Admin' exists, got %v", err)
+	}
+
+	// Try to register "ADMIN" (uppercase) - should fail
+	_, err = svc.Register(ctx, core.RegisterCommand{Email: "other2@example.com", Username: "ADMIN", Password: "password123"})
+	if !errors.Is(err, core.ErrUsernameExists) {
+		t.Fatalf("expected ErrUsernameExists for 'ADMIN' when 'Admin' exists, got %v", err)
 	}
 }
 

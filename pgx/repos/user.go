@@ -71,7 +71,8 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
-	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE username=$1`, username)
+	// Use case-insensitive lookup to prevent spoofing (e.g. "Admin" vs "admin")
+	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE LOWER(username)=LOWER($1)`, username)
 	user, err := scanUser(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

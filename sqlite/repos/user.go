@@ -128,7 +128,8 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
-	row := r.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE username = ?`, username)
+	// Use case-insensitive lookup (COLLATE NOCASE) to prevent spoofing
+	row := r.db.QueryRowContext(ctx, `SELECT `+userColumns+` FROM users WHERE username = ? COLLATE NOCASE`, username)
 
 	return scanUser(row)
 }
