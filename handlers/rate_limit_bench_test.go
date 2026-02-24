@@ -14,7 +14,7 @@ func BenchmarkCheckRateLimit_Cleanup(b *testing.B) {
 	future := time.Now().Add(time.Hour)
 	for i := 0; i < 2000; i++ {
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
-		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
+		h.visitors[rateLimitKey{ip: parseIPKey(ip), action: hashString("strict")}] = visitor{count: 1, resetAt: future.UnixNano()}
 	}
 
 	// Pre-generate IPs to avoid allocation during benchmark loop

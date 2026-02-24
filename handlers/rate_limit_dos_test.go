@@ -22,7 +22,7 @@ func TestDoS_RateLimit_Cleanup(t *testing.T) {
 	future := time.Now().Add(time.Hour)
 	for i := 0; i < initialSize; i++ {
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
-		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
+		h.visitors[rateLimitKey{ip: parseIPKey(ip), action: hashString("strict")}] = visitor{count: 1, resetAt: future.UnixNano()}
 	}
 
 	// Now make ONE request from a new IP
@@ -68,7 +68,7 @@ func TestDoS_RateLimit_MapGrowth(t *testing.T) {
 		// Use a simple string generation to avoid excessive allocs in test setup
 		// We use a prefix to ensure uniqueness
 		ip := fmt.Sprintf("192.168.%d.%d", i/256, i%256)
-		h.visitors[rateLimitKey{ip: ip, action: "strict"}] = visitor{count: 1, resetAt: future}
+		h.visitors[rateLimitKey{ip: parseIPKey(ip), action: hashString("strict")}] = visitor{count: 1, resetAt: future.UnixNano()}
 	}
 
 	// Add one more

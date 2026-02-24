@@ -1,0 +1,11 @@
+goos: linux
+goarch: amd64
+pkg: github.com/deicod/auth/handlers
+cpu: Intel(R) Xeon(R) Processor @ 2.30GHz
+BenchmarkCheckRateLimit_Cleanup-4   	 6638412	       170.7 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCheckRateLimit_Cleanup-4   	 6948184	       176.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCheckRateLimit_Cleanup-4   	 6945153	       177.1 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCheckRateLimit_Cleanup-4   	 6879243	       180.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCheckRateLimit_Cleanup-4   	 6239318	       187.1 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/deicod/auth/handlers	7.622s

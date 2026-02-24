@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"io"
@@ -27,12 +28,12 @@ var insecureProxyWarningOnce sync.Once
 
 type visitor struct {
 	count   int
-	resetAt time.Time
+	resetAt int64 // UnixNano
 }
 
 type rateLimitKey struct {
-	ip     string
-	action string
+	ip     [16]byte
+	action uint64
 }
 
 type AuthHandlers struct {
@@ -567,17 +568,50 @@ func bearerToken(header string) (string, bool) {
 	return token, true
 }
 
+// hashString calculates FNV-1a 64-bit hash of a string.
+// Inline implementation to avoid allocation (fnv.Write([]byte(s))).
+func hashString(s string) uint64 {
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	for i := 0; i < len(s); i++ {
+		hash ^= uint64(s[i])
+		hash *= prime64
+	}
+	return hash
+}
+
+// parseIPKey converts an IP string to [16]byte key for rate limiting.
+// It uses netip.ParseAddr for valid IPs (zero-allocation).
+// For invalid IPs (e.g. "localhost"), it falls back to MD5 hashing.
+func parseIPKey(s string) [16]byte {
+	if addr, err := netip.ParseAddr(s); err == nil {
+		return addr.As16()
+	}
+	// Fallback for non-IP strings (e.g. localhost or unparseable headers).
+	// We use MD5 to get a consistent 16-byte key.
+	// This path is slower but safer for arbitrary strings.
+	// We accept the allocation of []byte(s) here as it's an edge case.
+	return md5.Sum([]byte(s))
+}
+
 func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.Duration) bool {
 	// Hoist time.Now() out of the lock to reduce critical section size
 	now := time.Now()
+	nowUnix := now.UnixNano()
+
+	ipKey := parseIPKey(ip)
+	actionKey := hashString(action)
+	key := rateLimitKey{ipKey, actionKey}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	key := rateLimitKey{ip, action}
 	v, exists := h.visitors[key]
-	if !exists || now.After(v.resetAt) {
-		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window)}
+	if !exists || nowUnix > v.resetAt {
+		h.visitors[key] = visitor{count: 1, resetAt: now.Add(window).UnixNano()}
 		// Simple cleanup: if map is too big, purge expired.
 		// Optimization: Check only every 64th request to amortize the cost of map iteration.
 		// This prevents the cleanup loop from running on every request when the map is full.
@@ -588,7 +622,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 				// Go map iteration is random, so this is a random sample.
 				checked := 0
 				for k, val := range h.visitors {
-					if now.After(val.resetAt) {
+					if nowUnix > val.resetAt {
 						delete(h.visitors, k)
 					}
 					checked++
@@ -607,7 +641,7 @@ func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.
 				// Under attack, this prevents the loop from iterating 50k+ items without finding anything to delete.
 				scanned := 0
 				for k, val := range h.visitors {
-					if now.After(val.resetAt) {
+					if nowUnix > val.resetAt {
 						delete(h.visitors, k)
 					}
 					scanned++
