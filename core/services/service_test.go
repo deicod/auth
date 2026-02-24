@@ -285,6 +285,20 @@ func TestRegisterDuplicateUsername(t *testing.T) {
 	}
 }
 
+func TestRegisterDuplicateUsernameCaseInsensitive(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+	// Register "User1"
+	if _, err := svc.Register(ctx, core.RegisterCommand{Email: "e1@e.com", Username: "User1", Password: "password123"}); err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+	// Try to register "user1" (lowercase) - should fail
+	_, err := svc.Register(ctx, core.RegisterCommand{Email: "e2@e.com", Username: "user1", Password: "password123"})
+	if !errors.Is(err, core.ErrUsernameExists) {
+		t.Fatalf("expected ErrUsernameExists for case-insensitive duplicate, got %v", err)
+	}
+}
+
 func TestRegisterInvalidInput(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
@@ -576,14 +590,14 @@ func (m *memUserStore) Create(_ context.Context, params CreateUserParams) (core.
 	}
 	m.users[id] = user
 	m.emailIndex[params.Email] = id
-	m.usernameIndex[params.Username] = id
+	m.usernameIndex[strings.ToLower(params.Username)] = id
 	return user, nil
 }
 
 func (m *memUserStore) DeleteByID(_ context.Context, id core.ID) error {
 	if user, ok := m.users[id]; ok {
 		delete(m.emailIndex, user.Email)
-		delete(m.usernameIndex, user.Username)
+		delete(m.usernameIndex, strings.ToLower(user.Username))
 		delete(m.users, id)
 	}
 	return nil
@@ -597,7 +611,7 @@ func (m *memUserStore) FindByEmail(_ context.Context, email string) (core.User, 
 }
 
 func (m *memUserStore) FindByUsername(_ context.Context, username string) (core.User, error) {
-	if id, ok := m.usernameIndex[username]; ok {
+	if id, ok := m.usernameIndex[strings.ToLower(username)]; ok {
 		return m.users[id], nil
 	}
 	return core.User{}, core.ErrUserNotFound
