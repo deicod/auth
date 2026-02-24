@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/deicod/auth/internal/ctxutil"
@@ -59,7 +60,8 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	defer cancel()
 
 	var user models.User
-	err := r.coll.FindOne(ctx, bson.M{"username": username}).Decode(&user)
+	// Use regex for case-insensitive match
+	err := r.coll.FindOne(ctx, bson.M{"username": bson.M{"$regex": "^" + regexp.QuoteMeta(username) + "$", "$options": "i"}}).Decode(&user)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return user, err
