@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"crypto/md5"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -585,16 +585,19 @@ func hashString(s string) uint64 {
 
 // parseIPKey converts an IP string to [16]byte key for rate limiting.
 // It uses netip.ParseAddr for valid IPs (zero-allocation).
-// For invalid IPs (e.g. "localhost"), it falls back to MD5 hashing.
+// For invalid IPs (e.g. "localhost"), it falls back to FNV-1a hashing.
 func parseIPKey(s string) [16]byte {
 	if addr, err := netip.ParseAddr(s); err == nil {
 		return addr.As16()
 	}
 	// Fallback for non-IP strings (e.g. localhost or unparseable headers).
-	// We use MD5 to get a consistent 16-byte key.
-	// This path is slower but safer for arbitrary strings.
-	// We accept the allocation of []byte(s) here as it's an edge case.
-	return md5.Sum([]byte(s))
+	// We use FNV-1a (64-bit) to avoid allocation and CPU cost of MD5.
+	// We pad the 16-byte key with the hash. Collisions mean shared rate limits,
+	// which is acceptable for invalid inputs.
+	h := hashString(s)
+	var key [16]byte
+	binary.BigEndian.PutUint64(key[:8], h)
+	return key
 }
 
 func (h *AuthHandlers) checkRateLimit(ip, action string, limit int, window time.Duration) bool {
