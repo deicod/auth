@@ -384,6 +384,7 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-Xss-Protection", "1; mode=block")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 	w.WriteHeader(status)
 	if payload == nil {
 		return

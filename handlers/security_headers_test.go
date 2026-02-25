@@ -23,11 +23,12 @@ func TestSecurityHeaders(t *testing.T) {
 
 	// Check for security headers
 	expectedHeaders := map[string]string{
-		"X-Content-Type-Options": "nosniff",
-		"X-Frame-Options":        "DENY",
-		"X-Xss-Protection":       "1; mode=block",
-		"Cache-Control":          "no-store",
-		"Pragma":                 "no-cache",
+		"X-Content-Type-Options":  "nosniff",
+		"X-Frame-Options":         "DENY",
+		"X-Xss-Protection":        "1; mode=block",
+		"Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+		"Cache-Control":           "no-store",
+		"Pragma":                  "no-cache",
 	}
 
 	for key, expectedValue := range expectedHeaders {
