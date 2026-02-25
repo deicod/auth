@@ -386,8 +386,13 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	h := w.Header()
 	h["Content-Type"] = headerContentTypeJSON
 	// Prevent caching of sensitive authentication data
-	h["Cache-Control"] = headerCacheControlNoStore
-	h["Pragma"] = headerPragmaNoCache
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	// Add security headers to API responses
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("X-Xss-Protection", "1; mode=block")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 	w.WriteHeader(status)
 	if payload == nil {
 		return
