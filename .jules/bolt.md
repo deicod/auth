@@ -17,3 +17,7 @@
 ## 2026-03-22 - Zero-Allocation Security Headers
 **Learning:** `w.Header().Set` in Go allocates a new slice (`[]string`) for every call, and canonicalizes keys. Setting 10+ constant security headers per request generated 12 allocations/op. Direct map assignment with pre-allocated slices eliminates these allocations completely.
 **Action:** For constant headers in middleware, define package-level `[]string` variables and assign them directly to the header map using canonical keys (e.g., `h["X-Xss-Protection"] = headerSlice`) to achieve zero allocations and ~5x speedup.
+
+## 2026-03-23 - Zero-Allocation JSON Response Headers
+**Learning:** `respondJSON` used `w.Header().Set` for `Content-Type`, `Cache-Control`, and `Pragma` on every response, allocating 3 slices per request.
+**Action:** Applied the "Zero-Allocation Security Headers" pattern to `respondJSON` using pre-allocated `[]string` variables and direct map assignment. This reduced allocations by 33% (9 -> 6 allocs/op) and execution time by ~18% for small JSON responses.
