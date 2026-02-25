@@ -24,6 +24,13 @@ const (
 	loginRateWindow = time.Minute
 )
 
+// Pre-allocate header values to avoid allocation on every response
+var (
+	headerContentTypeJSON     = []string{"application/json"}
+	headerCacheControlNoStore = []string{"no-store"}
+	headerPragmaNoCache       = []string{"no-cache"}
+)
+
 var insecureProxyWarningOnce sync.Once
 
 type visitor struct {
@@ -376,10 +383,11 @@ func decodeJSON(r *http.Request, dst interface{}) error {
 }
 
 func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
+	h := w.Header()
+	h["Content-Type"] = headerContentTypeJSON
 	// Prevent caching of sensitive authentication data
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	h["Cache-Control"] = headerCacheControlNoStore
+	h["Pragma"] = headerPragmaNoCache
 	w.WriteHeader(status)
 	if payload == nil {
 		return
