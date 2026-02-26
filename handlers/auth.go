@@ -29,6 +29,10 @@ var (
 	headerContentTypeJSON     = []string{"application/json"}
 	headerCacheControlNoStore = []string{"no-store"}
 	headerPragmaNoCache       = []string{"no-cache"}
+	headerXContentOptions     = []string{"nosniff"}
+	headerXFrameOptions       = []string{"DENY"}
+	headerXXssProtection      = []string{"1; mode=block"}
+	headerCSP                 = []string{"default-src 'none'; frame-ancestors 'none'"}
 )
 
 var insecureProxyWarningOnce sync.Once
@@ -386,13 +390,13 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	h := w.Header()
 	h["Content-Type"] = headerContentTypeJSON
 	// Prevent caching of sensitive authentication data
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	h["Cache-Control"] = headerCacheControlNoStore
+	h["Pragma"] = headerPragmaNoCache
 	// Add security headers to API responses
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-Xss-Protection", "1; mode=block")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+	h["X-Content-Type-Options"] = headerXContentOptions
+	h["X-Frame-Options"] = headerXFrameOptions
+	h["X-Xss-Protection"] = headerXXssProtection
+	h["Content-Security-Policy"] = headerCSP
 	w.WriteHeader(status)
 	if payload == nil {
 		return
