@@ -16,6 +16,7 @@ import (
 
 	authpkg "github.com/deicod/auth"
 	"github.com/deicod/auth/core"
+	"github.com/deicod/auth/middleware"
 )
 
 const (
@@ -29,10 +30,6 @@ var (
 	headerContentTypeJSON     = []string{"application/json"}
 	headerCacheControlNoStore = []string{"no-store"}
 	headerPragmaNoCache       = []string{"no-cache"}
-	headerXContentOptions     = []string{"nosniff"}
-	headerXFrameOptions       = []string{"DENY"}
-	headerXXssProtection      = []string{"1; mode=block"}
-	headerCSP                 = []string{"default-src 'none'; frame-ancestors 'none'"}
 )
 
 var insecureProxyWarningOnce sync.Once
@@ -393,10 +390,10 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	h["Cache-Control"] = headerCacheControlNoStore
 	h["Pragma"] = headerPragmaNoCache
 	// Add security headers to API responses
-	h["X-Content-Type-Options"] = headerXContentOptions
-	h["X-Frame-Options"] = headerXFrameOptions
-	h["X-Xss-Protection"] = headerXXssProtection
-	h["Content-Security-Policy"] = headerCSP
+	h["X-Content-Type-Options"] = middleware.HeaderXContentOptions
+	h["X-Frame-Options"] = middleware.HeaderXFrameOptions
+	h["X-Xss-Protection"] = middleware.HeaderXXssProtection
+	h["Content-Security-Policy"] = middleware.HeaderCSP
 	w.WriteHeader(status)
 	if payload == nil {
 		return
