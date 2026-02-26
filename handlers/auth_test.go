@@ -74,6 +74,7 @@ func TestRegisterHandlerSuccess(t *testing.T) {
 	data, _ := json.Marshal(body)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(data))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	h.Register().ServeHTTP(rr, req)
@@ -90,6 +91,7 @@ func TestRegisterHandlerBadJSON(t *testing.T) {
 	svc := &fakeService{}
 	h := New(svc)
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString("not-json"))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	h.Register().ServeHTTP(rr, req)
 	if rr.Code != http.StatusBadRequest {
@@ -187,6 +189,7 @@ func TestLoginHandler(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			h.Login().ServeHTTP(rr, req)
@@ -231,6 +234,7 @@ func TestVerifyEmailHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/verify", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			h.VerifyEmail().ServeHTTP(rr, req)
@@ -274,6 +278,7 @@ func TestForgotPasswordHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/forgot", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			h.ForgotPassword().ServeHTTP(rr, req)
@@ -318,6 +323,7 @@ func TestResetPasswordHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/reset", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			h.ResetPassword().ServeHTTP(rr, req)
@@ -375,6 +381,7 @@ func TestInitiateEmailChangeHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/email-change", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			if tt.headerKey != "" {
 				req.Header.Set(tt.headerKey, tt.headerVal)
 			}
@@ -422,6 +429,7 @@ func TestConfirmEmailChangeHandler(t *testing.T) {
 
 			body, _ := json.Marshal(tt.body)
 			req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
 			h.ConfirmEmailChange().ServeHTTP(rr, req)
@@ -506,6 +514,7 @@ func TestClientIP(t *testing.T) {
 				"email": "test@example.com", "username": "test", "password": "password",
 			})
 			req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
 			req.RemoteAddr = tt.remoteAddr
 			if tt.headerKey != "" {
 				req.Header.Set(tt.headerKey, tt.headerVal)
@@ -531,6 +540,7 @@ func TestCacheControlHeaders(t *testing.T) {
 	// We use valid JSON to ensure it reaches respondJSON (invalid JSON hits writeJSONError which also uses respondJSON, but let's be clean)
 	body := `{"email":"test@example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/forgot", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 
 	h.ForgotPassword().ServeHTTP(rr, req)
@@ -557,6 +567,7 @@ func TestRateLimiting(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		body := `{"email":"t@e.com","password":"p"}`
 		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
 		req.RemoteAddr = "192.0.2.1:1234"
 		rr := httptest.NewRecorder()
 		h.Login().ServeHTTP(rr, req)
@@ -568,6 +579,7 @@ func TestRateLimiting(t *testing.T) {
 	// 6th request should be blocked
 	body := `{"email":"t@e.com","password":"p"}`
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = "192.0.2.1:1234"
 	rr := httptest.NewRecorder()
 	h.Login().ServeHTTP(rr, req)
@@ -578,6 +590,7 @@ func TestRateLimiting(t *testing.T) {
 
 	// Request from different IP should be allowed
 	req2 := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+	req2.Header.Set("Content-Type", "application/json")
 	req2.RemoteAddr = "192.0.2.2:1234"
 	rr2 := httptest.NewRecorder()
 	h.Login().ServeHTTP(rr2, req2)

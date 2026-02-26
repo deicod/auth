@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -364,6 +365,21 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 }
 
 func decodeJSON(r *http.Request, dst interface{}) error {
+	// Enforce strict Content-Type to prevent CSRF via Simple Requests (e.g. text/plain)
+	ct := r.Header.Get("Content-Type")
+	if ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil {
+			return errors.New("invalid content-type header")
+		}
+		if mediaType != "application/json" {
+			return errors.New("content-type must be application/json")
+		}
+	} else {
+		// Strictly require Content-Type for all JSON endpoints
+		return errors.New("content-type header required")
+	}
+
 	// Limit request body to 1MB to prevent DoS
 	r.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
 	defer func() {
