@@ -26,15 +26,13 @@ func TestContentType_SimpleRequest(t *testing.T) {
 	rr := httptest.NewRecorder()
 	h.Login().ServeHTTP(rr, req)
 
-	// We expect 415 Unsupported Media Type or 400 Bad Request
+	// We expect 400 Bad Request for invalid or unexpected Content-Type
 	if rr.Code == http.StatusOK {
 		t.Fatal("VULNERABLE: Accepted text/plain Content-Type")
-	} else if rr.Code == http.StatusUnsupportedMediaType {
-		// Ideal behavior
 	} else if rr.Code == http.StatusBadRequest {
-		// Acceptable behavior if it fails JSON decoding or explicit check
+		// Expected behavior: request rejected as bad JSON / unsupported media type
 	} else {
-		t.Logf("Got status %d", rr.Code)
+		t.Logf("Got unexpected status %d", rr.Code)
 	}
 }
 
