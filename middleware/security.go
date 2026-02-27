@@ -7,11 +7,11 @@ import (
 
 // Pre-allocate header value slices to avoid allocation on every request.
 var (
-	headerXContentOptions         = []string{"nosniff"}
-	headerXFrameOptions           = []string{"DENY"}
-	headerXXssProtection          = []string{"1; mode=block"} // Canonical key is X-Xss-Protection
+	HeaderXContentOptions         = []string{"nosniff"}
+	HeaderXFrameOptions           = []string{"DENY"}
+	HeaderXXssProtection          = []string{"1; mode=block"} // Canonical key is X-Xss-Protection
 	headerReferrerPolicy          = []string{"strict-origin-when-cross-origin"}
-	headerCSP                     = []string{"default-src 'none'; frame-ancestors 'none'"}
+	HeaderCSP                     = []string{"default-src 'none'; frame-ancestors 'none'"}
 	headerCOOP                    = []string{"same-origin"}
 	headerCORP                    = []string{"same-origin"}
 	headerXPermittedPolicies      = []string{"none"}
@@ -35,16 +35,16 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		h := w.Header()
 
 		// Prevent MIME-sniffing
-		h["X-Content-Type-Options"] = headerXContentOptions
+		h["X-Content-Type-Options"] = HeaderXContentOptions
 		// Prevent clickjacking
-		h["X-Frame-Options"] = headerXFrameOptions
+		h["X-Frame-Options"] = HeaderXFrameOptions
 		// Enable XSS filtering in browsers that support it
 		// Note: We use the canonical key "X-Xss-Protection" because direct map assignment bypasses canonicalization.
-		h["X-Xss-Protection"] = headerXXssProtection
+		h["X-Xss-Protection"] = HeaderXXssProtection
 		// Control referrer information
 		h["Referrer-Policy"] = headerReferrerPolicy
 		// Content Security Policy
-		h["Content-Security-Policy"] = headerCSP
+		h["Content-Security-Policy"] = HeaderCSP
 		// Prevent other sites from opening the app in a way that allows cross-origin interactions
 		h["Cross-Origin-Opener-Policy"] = headerCOOP
 		// Prevent other sites from loading resources from the app

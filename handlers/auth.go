@@ -16,6 +16,7 @@ import (
 
 	authpkg "github.com/deicod/auth"
 	"github.com/deicod/auth/core"
+	"github.com/deicod/auth/middleware"
 )
 
 const (
@@ -386,13 +387,13 @@ func respondJSON(w http.ResponseWriter, status int, payload interface{}) {
 	h := w.Header()
 	h["Content-Type"] = headerContentTypeJSON
 	// Prevent caching of sensitive authentication data
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	h["Cache-Control"] = headerCacheControlNoStore
+	h["Pragma"] = headerPragmaNoCache
 	// Add security headers to API responses
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-Xss-Protection", "1; mode=block")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
+	h["X-Content-Type-Options"] = middleware.HeaderXContentOptions
+	h["X-Frame-Options"] = middleware.HeaderXFrameOptions
+	h["X-Xss-Protection"] = middleware.HeaderXXssProtection
+	h["Content-Security-Policy"] = middleware.HeaderCSP
 	w.WriteHeader(status)
 	if payload == nil {
 		return
