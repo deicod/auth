@@ -57,7 +57,7 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 - `OperationTimeout`: context deadline used by repositories.
 - Embedded migrations now create helper indexes on `expires_at` for sessions and token tables, so scheduled cleanup jobs (or `DELETE ... WHERE expires_at < now()`) stay efficient. PostgreSQL does not support TTL indexes natively, so you still need a periodic cleanup job if you want automatic removal.
 
-> ℹ️ The pgx backend applies embedded SQL migrations automatically and expects PostgreSQL 16+ (for the `uuidv7()` default). If you're on an older version, replace the default in `pgx/migrations/0001_init.sql` or create the function manually.
+> ℹ️ The pgx backend applies embedded SQL migrations automatically and expects PostgreSQL 18+ (for the `uuidv7()` default). If you're on an older version, replace the default in `pgx/migrations/0001_init.sql` or create the function manually.
 
 ### SQLite Config (`sqlite.Config`)
 - `DSN`: SQLite connection string (e.g. `file:auth.db?_foreign_keys=on`). Use `:memory:` for in-memory.
