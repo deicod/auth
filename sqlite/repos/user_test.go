@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // testDB creates an in-memory SQLite database for testing with schema applied.
 // Uses shared cache mode to support concurrent access from multiple goroutines.
 func testDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared&_foreign_keys=on")
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared&_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatalf("failed to open test db: %v", err)
 	}

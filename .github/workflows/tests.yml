@@ -14,8 +14,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install SQLite dependencies
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -30,7 +28,5 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Install SQLite dependencies
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
       - name: Run tests
         run: go test ./...

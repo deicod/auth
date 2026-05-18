@@ -62,7 +62,7 @@ const (
 	BackendMongo Backend = "mongo"
 	// BackendPostgres uses pgx with a connection pool.
 	BackendPostgres Backend = "postgres"
-	// BackendSQLite uses go-sqlite3 with CGO.
+	// BackendSQLite uses modernc.org/sqlite (pure Go, no CGO).
 	BackendSQLite Backend = "sqlite"
 )
 

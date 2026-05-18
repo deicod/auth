@@ -10,7 +10,7 @@ import (
 	"github.com/deicod/auth/email"
 	"github.com/deicod/auth/internal/security"
 	"github.com/deicod/auth/sqlite/repos"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // Service wraps an AuthService with a SQLite database connection.
@@ -25,7 +25,7 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		return nil, errors.New("sqlite DSN is required")
 	}
 
-	db, err := sql.Open("sqlite3", cfg.Sqlite.DSN)
+	db, err := sql.Open("sqlite", cfg.Sqlite.DSN)
 	if err != nil {
 		return nil, err
 	}
