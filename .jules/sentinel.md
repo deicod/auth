@@ -102,3 +102,8 @@
 **Vulnerability:** The default configuration for `TrustedProxies` in `AuthHandlers` is empty, which causes the library to trust `X-Forwarded-For` headers from any source by default. This allows attackers to bypass IP-based rate limiting by spoofing the header.
 **Learning:** The library prioritizes usability (working behind proxies without configuration) over security by default. While a warning is logged, the default behavior is insecure and relies on users noticing the log.
 **Prevention:** In future major versions, default to "deny all proxies" (ignore headers) unless explicitly configured. For now, rely on documentation and warnings, or add explicit checks in deployment configs.
+
+## 2026-09-24 - DoS via Length Check After Dummy-Hash Verify
+**Vulnerability:** `InitiateEmailChange` checked `len(password) > maxPasswordLength` only after the `FindByID` + dummy-hash `Verify` on the not-found path (and after `Verify` setup on the found path), so a ~1MB password forced a full Argon2 verification before rejection.
+**Learning:** Length bounds only stop CPU exhaustion if they run before every expensive operation they guard, including timing-normalization dummy verifies; placing the check after the DB lookup re-opens the exact DoS the limit was added to close.
+**Prevention:** In password flows, validate `len(password)` first, before any store lookup or `hasher.Verify` (real or dummy).

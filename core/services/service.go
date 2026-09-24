@@ -345,6 +345,13 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 }
 
 func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEmailCommand) error {
+	// SECURITY: Reject oversized passwords before any DB lookup or Argon2
+	// verification (including the dummy-hash verification on the not-found
+	// path). Argon2 cost scales with input size, so verifying first would let
+	// an authenticated caller burn CPU with ~1MB passwords.
+	if len(cmd.Password) > maxPasswordLength {
+		return core.ErrInvalidCredentials
+	}
 	user, err := s.stores.Users.FindByID(ctx, cmd.UserID)
 	if err != nil {
 		if errors.Is(err, core.ErrUserNotFound) {
@@ -354,9 +361,6 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 		return err
 	}
 
-	if len(cmd.Password) > maxPasswordLength {
-		return core.ErrInvalidCredentials
-	}
 	if err := s.hasher.Verify(user.PasswordHash, cmd.Password); err != nil {
 		return core.ErrInvalidCredentials
 	}
