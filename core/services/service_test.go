@@ -191,6 +191,35 @@ func TestInitiateEmailChange_UserEnumeration(t *testing.T) {
 	}
 }
 
+func TestInitiateEmailChange_RejectsInvalidNewEmail(t *testing.T) {
+	svc, deps := newTestService(t)
+	ctx := context.Background()
+
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "gail@example.com", Username: "gail", Password: "secretpassword"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+
+	for _, bad := range []string{"invalid-email", "Alice <alice@example.com>", "a@b.com\nBcc: victim@example.com", ""} {
+		err := svc.InitiateEmailChange(ctx, core.ChangeEmailCommand{
+			UserID:   res.User.ID,
+			Password: "secretpassword",
+			NewEmail: bad,
+		})
+		if !errors.Is(err, core.ErrInvalidInput) {
+			t.Fatalf("expected ErrInvalidInput for %q, got: %v", bad, err)
+		}
+	}
+
+	// No change request or email may be created for invalid input.
+	if len(deps.changes.tokens) != 0 {
+		t.Fatalf("expected no email-change tokens, got %d", len(deps.changes.tokens))
+	}
+	if len(deps.mailer.emailChangeTokens) != 0 {
+		t.Fatalf("expected no email-change emails, got %d", len(deps.mailer.emailChangeTokens))
+	}
+}
+
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
