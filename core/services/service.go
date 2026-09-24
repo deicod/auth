@@ -307,6 +307,13 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.UserPublic{}, core.ErrTokenNotFound
 	}
+	// SECURITY: Reject oversized passwords before token hashing and DB lookup.
+	// Argon2/validation cost scales with input size, and every other password
+	// flow (Register, Login, InitiateEmailChange) already fails fast here; a
+	// ~1MB NewPassword must not force a SHA-256 + DB round-trip first.
+	if len(cmd.NewPassword) > maxPasswordLength {
+		return core.UserPublic{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
+	}
 	hash := security.HashToken(cmd.Token)
 	token, err := s.stores.PasswordResets.FindByHash(ctx, hash)
 	if err != nil {
