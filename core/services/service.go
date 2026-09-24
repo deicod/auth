@@ -465,12 +465,14 @@ func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEm
 }
 
 func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (core.UserPublic, core.SessionPublic, error) {
-	if strings.TrimSpace(token) == "" {
-		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
-	}
 	if len(token) > maxTokenLength {
 		// SECURITY: reject oversized tokens early to avoid hashing/DB work,
 		// consistent with VerifyEmail/ResetPassword/ConfirmEmailChange.
+		// Check the raw length before trimming: this method hashes the
+		// untrimmed token, so whitespace padding must not bypass the bound.
+		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
+	}
+	if strings.TrimSpace(token) == "" {
 		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
 	}
 	hash := security.HashToken(token)
@@ -496,6 +498,11 @@ func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (co
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
+	if len(token) > maxTokenLength {
+		// SECURITY: check the raw length before trimming so whitespace-padded
+		// oversized input cannot reach hashing/DB work.
+		return core.ErrSessionNotFound
+	}
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return core.ErrSessionNotFound
@@ -526,6 +533,11 @@ func (s *AuthService) createSession(ctx context.Context, userID core.ID, userAge
 	token, hash, err := s.sessionTokens.Generate()
 	if err != nil {
 		return core.Session{}, "", err
+	}
+	if len(token) > maxTokenLength {
+		// SECURITY: never issue a token we would reject at authentication
+		// time; fail closed instead of storing an orphaned, unusable session.
+		return core.Session{}, "", fmt.Errorf("session token generator produced oversized token")
 	}
 
 	now := time.Now().UTC()

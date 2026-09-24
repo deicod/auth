@@ -70,4 +70,20 @@ func TestSessionToken_RejectsOversizedBeforeDB(t *testing.T) {
 	if sessions.findCalls != 0 {
 		t.Fatalf("expected no DB lookup for oversized logout token, got %d calls", sessions.findCalls)
 	}
+
+	// Whitespace-padded short values must also fail fast on raw length.
+	padded := strings.Repeat(" ", maxTokenLength+1) + "x"
+	sessions.findCalls = 0
+	if _, _, err := svc.AuthenticateSession(ctx, padded); !errors.Is(err, core.ErrSessionNotFound) {
+		t.Fatalf("expected ErrSessionNotFound for padded session token, got %v", err)
+	}
+	if sessions.findCalls != 0 {
+		t.Fatalf("expected no DB lookup for padded session token, got %d calls", sessions.findCalls)
+	}
+	if err := svc.Logout(ctx, padded); !errors.Is(err, core.ErrSessionNotFound) {
+		t.Fatalf("expected ErrSessionNotFound for padded logout token, got %v", err)
+	}
+	if sessions.findCalls != 0 {
+		t.Fatalf("expected no DB lookup for padded logout token, got %d calls", sessions.findCalls)
+	}
 }
