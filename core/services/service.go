@@ -445,9 +445,27 @@ func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEm
 		return core.ChangeEmailResult{}, core.ErrTokenExpired
 	}
 
+	// SECURITY: Re-validate the stored pending email at consume time.
+	// InitiateEmailChange checked format and availability when the request
+	// was created, but the address can become invalid afterwards (TOCTOU):
+	// another user may register it before this token is confirmed, or a
+	// pending row written before format validation existed may hold a
+	// malformed address. Promoting it unchecked would create duplicate
+	// login identifiers or corrupt the user's email. Fail closed here.
+	newEmail := normalizeEmail(req.NewEmail)
+	if len(req.NewEmail) > maxEmailLength || len(newEmail) > maxEmailLength {
+		return core.ChangeEmailResult{}, fmt.Errorf("%w: email too long", core.ErrInvalidInput)
+	}
+	if !isValidEmail(newEmail) {
+		return core.ChangeEmailResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
+	}
+	if err := s.ensureEmailAvailable(ctx, newEmail, req.UserID); err != nil {
+		return core.ChangeEmailResult{}, err
+	}
+
 	now := time.Now().UTC()
 	updates := map[string]interface{}{
-		"email":       req.NewEmail,
+		"email":       newEmail,
 		"updated_at":  now,
 		"is_verified": true,
 		"verified_at": now,
