@@ -1,5 +1,7 @@
 # Auth
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/deicod/auth.svg)](https://pkg.go.dev/github.com/deicod/auth)
+
 `github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes a single `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB or `pgx` for PostgreSQL) at runtime.
 
 ## Highlights
