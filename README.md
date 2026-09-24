@@ -1,6 +1,10 @@
 # Auth
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/deicod/auth.svg)](https://pkg.go.dev/github.com/deicod/auth)
+[![Tests](https://github.com/deicod/auth/actions/workflows/tests.yml/badge.svg)](https://github.com/deicod/auth/actions/workflows/tests.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/deicod/auth)](https://go.dev/doc/devel/release)
+[![GitHub Release](https://img.shields.io/github/v/tag/deicod/auth)](https://github.com/deicod/auth/tags)
+[![License](https://img.shields.io/github/license/deicod/auth)](LICENSE)
 
 `github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes a single `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB or `pgx` for PostgreSQL) at runtime.
 
