@@ -82,7 +82,7 @@ func (h *AuthHandlers) Register() http.HandlerFunc {
 			Username string `json:"username"`
 			Password string `json:"password"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -118,7 +118,7 @@ func (h *AuthHandlers) Login() http.HandlerFunc {
 			Email    string `json:"email"`
 			Password string `json:"password"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -200,7 +200,7 @@ func (h *AuthHandlers) VerifyEmail() http.HandlerFunc {
 		var req struct {
 			Token string `json:"token"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -226,7 +226,7 @@ func (h *AuthHandlers) ForgotPassword() http.HandlerFunc {
 		var req struct {
 			Email string `json:"email"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -252,7 +252,7 @@ func (h *AuthHandlers) ResetPassword() http.HandlerFunc {
 			Token       string `json:"token"`
 			NewPassword string `json:"new_password"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -299,7 +299,7 @@ func (h *AuthHandlers) InitiateEmailChange() http.HandlerFunc {
 			Password string `json:"password"`
 			NewEmail string `json:"new_email"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -329,7 +329,7 @@ func (h *AuthHandlers) ConfirmEmailChange() http.HandlerFunc {
 		var req struct {
 			Token string `json:"token"`
 		}
-		if err := decodeJSON(r, &req); err != nil {
+		if err := decodeJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err)
 			return
 		}
@@ -364,9 +364,12 @@ func (h *AuthHandlers) writeServiceError(w http.ResponseWriter, err error) {
 	}
 }
 
-func decodeJSON(r *http.Request, dst interface{}) error {
-	// Limit request body to 1MB to prevent DoS
-	r.Body = http.MaxBytesReader(nil, r.Body, maxBodySize)
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst interface{}) error {
+	// SECURITY: pass the live ResponseWriter so MaxBytesReader can ask the
+	// server to close the connection when the 1MB limit is exceeded
+	// (requestTooLarge). Passing nil still caps Read, but silently drops
+	// that close signal, leaving cleanup to secondary post-handler paths.
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 	defer func() {
 		if err := r.Body.Close(); err != nil {
 			log.Printf("auth handler failed to close request body: %v", err)

@@ -107,3 +107,11 @@
 **Vulnerability:** `InitiateEmailChange` checked `len(password) > maxPasswordLength` only after the `FindByID` + dummy-hash `Verify` on the not-found path (and after `Verify` setup on the found path), so a ~1MB password forced a full Argon2 verification before rejection.
 **Learning:** Length bounds only stop CPU exhaustion if they run before every expensive operation they guard, including timing-normalization dummy verifies; placing the check after the DB lookup re-opens the exact DoS the limit was added to close.
 **Prevention:** In password flows, validate `len(password)` first, before any store lookup or `hasher.Verify` (real or dummy).
+
+## 2026-09-24 - MaxBytesReader Nil Writer Drops Close Signal
+
+**Vulnerability:** `decodeJSON` wrapped request bodies with `http.MaxBytesReader(nil, ...)`. Reads were still capped at 1MB, but the nil writer silently disabled the `requestTooLarge` signal that tells the server to close the connection after an over-limit body, leaving cleanup to secondary post-handler paths.
+
+**Learning:** `MaxBytesReader`'s size cap works with any writer, but its connection-close protection only fires when given the live `http.ResponseWriter` — and the close path is unobservable in unit tests because `requestTooLarge` is an unexported `net/http` interface only the real server response satisfies.
+
+**Prevention:** Always pass the live `ResponseWriter` to `http.MaxBytesReader` in handlers; never pass nil for test convenience.
