@@ -365,6 +365,14 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 		return fmt.Errorf("%w: email too long", core.ErrInvalidInput)
 	}
 	newEmail := normalizeEmail(cmd.NewEmail)
+	// SECURITY: Validate format at the trust boundary (same check as Register).
+	// Without this, attacker-controlled strings (e.g. header newlines, missing
+	// "@") would be stored as pending emails and later promoted to the user's
+	// login email via ConfirmEmailChange, breaking account integrity and
+	// handing malformed recipients to the SMTP sender.
+	if !isValidEmail(newEmail) {
+		return fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
+	}
 	if err := s.ensureEmailAvailable(ctx, newEmail, user.ID); err != nil {
 		return err
 	}
