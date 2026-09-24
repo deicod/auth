@@ -99,6 +99,15 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 	if len(cmd.Email) > maxEmailLength {
 		return core.AuthResult{}, fmt.Errorf("%w: email too long", core.ErrInvalidInput)
 	}
+	// SECURITY: Reject oversized passwords before any DB lookup or Argon2
+	// hashing. validatePassword also checks length, but it runs after the
+	// email/username availability queries below; a ~1MB password would force
+	// two DB round-trips before rejection, letting unauthenticated callers
+	// burn database resources (rate limits are per-IP and IPs are spoofable
+	// when TrustedProxies is unconfigured).
+	if len(cmd.Password) > maxPasswordLength {
+		return core.AuthResult{}, fmt.Errorf("%w: password too long", core.ErrInvalidInput)
+	}
 	email := normalizeEmail(cmd.Email)
 	if !isValidEmail(email) {
 		return core.AuthResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
