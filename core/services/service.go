@@ -468,6 +468,11 @@ func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (co
 	if strings.TrimSpace(token) == "" {
 		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
 	}
+	if len(token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work,
+		// consistent with VerifyEmail/ResetPassword/ConfirmEmailChange.
+		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
+	}
 	hash := security.HashToken(token)
 	session, err := s.stores.Sessions.FindByTokenHash(ctx, hash)
 	if err != nil {
@@ -493,6 +498,10 @@ func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (co
 func (s *AuthService) Logout(ctx context.Context, token string) error {
 	token = strings.TrimSpace(token)
 	if token == "" {
+		return core.ErrSessionNotFound
+	}
+	if len(token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.ErrSessionNotFound
 	}
 	hash := security.HashToken(token)
