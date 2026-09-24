@@ -19,6 +19,45 @@ func (c *countingSessionStore) FindByTokenHash(ctx context.Context, hash string)
 	return c.memSessionStore.FindByTokenHash(ctx, hash)
 }
 
+// oversizedTokenGenerator simulates a misconfigured custom SessionTokens
+// generator that produces tokens longer than the accepted bound.
+type oversizedTokenGenerator struct{}
+
+func (oversizedTokenGenerator) Generate() (string, string, error) {
+	token := strings.Repeat("t", maxTokenLength+1)
+	return token, "hash:" + token, nil
+}
+
+func TestSessionToken_GeneratorOversizedFailsClosed(t *testing.T) {
+	sessions := newMemSessionStore()
+	svc, err := New(Dependencies{
+		Stores: Stores{
+			Users:          newMemUserStore(),
+			Sessions:       sessions,
+			Verifications:  newMemVerificationStore(),
+			PasswordResets: newMemPasswordResetStore(),
+			EmailChanges:   newMemEmailChangeStore(),
+		},
+		Hasher:         fakeHasher{},
+		SessionTokens:  oversizedTokenGenerator{},
+		TokenGenerator: newFixedTokenGenerator("tok"),
+		Mailer:         &captureMailer{},
+	})
+	if err != nil {
+		t.Fatalf("failed to create auth service: %v", err)
+	}
+
+	_, err = svc.Register(context.Background(), core.RegisterCommand{
+		Email: "oversized-gen@example.com", Username: "oversizedgen", Password: "password123",
+	})
+	if !errors.Is(err, core.ErrTokenGeneration) {
+		t.Fatalf("expected ErrTokenGeneration, got %v", err)
+	}
+	if len(sessions.sessions) != 0 {
+		t.Fatalf("expected no session to be stored, got %d", len(sessions.sessions))
+	}
+}
+
 func TestSessionToken_RejectsOversizedBeforeDB(t *testing.T) {
 	sessions := &countingSessionStore{memSessionStore: newMemSessionStore()}
 	svc, err := New(Dependencies{

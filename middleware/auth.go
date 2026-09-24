@@ -54,6 +54,13 @@ func SessionFromContext(ctx context.Context) (core.SessionPublic, bool) {
 // bearerToken extracts the bearer token from the Authorization header.
 // It is optimized for zero allocations by avoiding strings.Fields.
 func bearerToken(header string) (string, bool) {
+	// SECURITY: reject oversized raw headers before trimming/parsing. Valid
+	// headers are ~50 bytes ("Bearer " + token); anything longer cannot yield
+	// an accepted token (see core.MaxTokenLength) and is dropped before any
+	// trimming, hashing, or DB work.
+	if len(header) > core.MaxTokenLength+len("Bearer ") {
+		return "", false
+	}
 	header = strings.TrimSpace(header)
 	if len(header) < 7 {
 		return "", false

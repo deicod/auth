@@ -34,7 +34,9 @@ const (
 	maxPasswordLength = 1024
 	maxEmailLength    = 254
 	// Limit token size to prevent hash/DB DoS from oversized inputs.
-	maxTokenLength = 1024
+	// Single source of truth is core.MaxTokenLength (also enforced by the
+	// HTTP layer before parsing Authorization headers).
+	maxTokenLength = core.MaxTokenLength
 	// Timeout for async tasks like email sending to prevent goroutine leaks.
 	asyncTaskTimeout = 30 * time.Second
 )
@@ -537,7 +539,7 @@ func (s *AuthService) createSession(ctx context.Context, userID core.ID, userAge
 	if len(token) > maxTokenLength {
 		// SECURITY: never issue a token we would reject at authentication
 		// time; fail closed instead of storing an orphaned, unusable session.
-		return core.Session{}, "", fmt.Errorf("session token generator produced oversized token")
+		return core.Session{}, "", fmt.Errorf("%w: session token exceeds maximum length", core.ErrTokenGeneration)
 	}
 
 	now := time.Now().UTC()

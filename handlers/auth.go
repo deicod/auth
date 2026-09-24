@@ -551,6 +551,14 @@ func (h *AuthHandlers) isTrustedString(ip string) bool {
 }
 
 func bearerToken(header string) (string, bool) {
+	// SECURITY: reject oversized raw headers before trimming/parsing. Valid
+	// headers are ~50 bytes ("Bearer " + token); anything longer cannot yield
+	// an accepted token (see core.MaxTokenLength) and is dropped before any
+	// trimming, hashing, or DB work. Without this, whitespace padding would
+	// trim down to a short token and still reach the session store.
+	if len(header) > core.MaxTokenLength+len("Bearer ") {
+		return "", false
+	}
 	header = strings.TrimSpace(header)
 	if len(header) < 7 {
 		return "", false
