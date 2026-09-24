@@ -115,3 +115,11 @@
 **Learning:** `MaxBytesReader`'s size cap works with any writer, but its connection-close protection only fires when given the live `http.ResponseWriter` — and the close path is unobservable in unit tests because `requestTooLarge` is an unexported `net/http` interface only the real server response satisfies.
 
 **Prevention:** Always pass the live `ResponseWriter` to `http.MaxBytesReader` in handlers; never pass nil for test convenience.
+
+## 2026-09-24 - Stale Pending Email Promoted at Confirm Time
+
+**Vulnerability:** `ConfirmEmailChange` promoted the stored `NewEmail` to the user's login email without re-checking it. The address was validated at initiation, but could be taken by another user before confirmation (TOCTOU) or be a malformed legacy row, producing duplicate login identifiers or corrupt account email.
+
+**Learning:** In two-step flows, issue-time validation does not survive the window before consume; the pending value must be treated as untrusted again at confirmation.
+
+**Prevention:** Re-validate pending values (length, format, availability excluding the owner) in `ConfirmEmailChange` before `UpdateFields`, failing closed with `ErrInvalidInput`/`ErrEmailExists`.

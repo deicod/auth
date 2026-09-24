@@ -220,6 +220,85 @@ func TestInitiateEmailChange_RejectsInvalidNewEmail(t *testing.T) {
 	}
 }
 
+func TestConfirmEmailChange_RejectsTakenEmail(t *testing.T) {
+	svc, deps := newTestService(t)
+	ctx := context.Background()
+
+	resA, err := svc.Register(ctx, core.RegisterCommand{Email: "anna@example.com", Username: "anna", Password: "secretpassword"})
+	if err != nil {
+		t.Fatalf("register A failed: %v", err)
+	}
+	if err := svc.InitiateEmailChange(ctx, core.ChangeEmailCommand{
+		UserID:   resA.User.ID,
+		Password: "secretpassword",
+		NewEmail: "target@example.com",
+	}); err != nil {
+		t.Fatalf("initiate failed: %v", err)
+	}
+
+	// Wait for the async confirmation email so the token is captured.
+	select {
+	case <-deps.mailer.notifyChange:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for email change confirmation")
+	}
+	changeToken := deps.mailer.emailChangeTokens[len(deps.mailer.emailChangeTokens)-1]
+
+	// TOCTOU: another user registers the target address before A confirms.
+	if _, err := svc.Register(ctx, core.RegisterCommand{Email: "target@example.com", Username: "bob", Password: "secretpassword"}); err != nil {
+		t.Fatalf("register B failed: %v", err)
+	}
+
+	if _, err := svc.ConfirmEmailChange(ctx, core.ConfirmEmailChangeCommand{Token: changeToken}); !errors.Is(err, core.ErrEmailExists) {
+		t.Fatalf("expected ErrEmailExists, got: %v", err)
+	}
+
+	// A's address must be unchanged.
+	userA, err := deps.users.FindByID(ctx, resA.User.ID)
+	if err != nil {
+		t.Fatalf("find user A failed: %v", err)
+	}
+	if userA.Email != "anna@example.com" {
+		t.Fatalf("expected A's email to be unchanged, got %s", userA.Email)
+	}
+}
+
+func TestConfirmEmailChange_RejectsMalformedStoredEmail(t *testing.T) {
+	svc, deps := newTestService(t)
+	ctx := context.Background()
+
+	res, err := svc.Register(ctx, core.RegisterCommand{Email: "carl@example.com", Username: "carl", Password: "secretpassword"})
+	if err != nil {
+		t.Fatalf("register failed: %v", err)
+	}
+
+	// Simulate a legacy pending row holding an address that would never
+	// pass InitiateEmailChange validation today.
+	const rawToken = "legacy-malformed-token"
+	now := time.Now().UTC()
+	if _, err := deps.changes.Create(ctx, CreateEmailChangeParams{
+		UserID:    res.User.ID,
+		NewEmail:  "not-an-email",
+		TokenHash: security.HashToken(rawToken),
+		ExpiresAt: now.Add(time.Hour),
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("seed legacy request failed: %v", err)
+	}
+
+	if _, err := svc.ConfirmEmailChange(ctx, core.ConfirmEmailChangeCommand{Token: rawToken}); !errors.Is(err, core.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got: %v", err)
+	}
+
+	user, err := deps.users.FindByID(ctx, res.User.ID)
+	if err != nil {
+		t.Fatalf("find user failed: %v", err)
+	}
+	if user.Email != "carl@example.com" {
+		t.Fatalf("expected email to be unchanged, got %s", user.Email)
+	}
+}
+
 func TestVerifyEmailExpired(t *testing.T) {
 	svc, deps := newTestService(t)
 	ctx := context.Background()
