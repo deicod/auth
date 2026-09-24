@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/deicod/auth/core"
@@ -87,5 +88,39 @@ func TestRequireAuthInvalidSession(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 when authenticator fails, got %d", rr.Code)
+	}
+}
+
+func TestRequireAuthRejectsOversizedHeader(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		header string
+	}{
+		{"long token", "Bearer " + strings.Repeat("a", core.MaxTokenLength+1)},
+		{"whitespace padded", strings.Repeat(" ", core.MaxTokenLength+1) + "Bearer x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := &fakeAuthenticator{}
+			called := false
+			handler := RequireAuth(auth)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", tc.header)
+			rr := httptest.NewRecorder()
+
+			handler.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("expected 401, got %d", rr.Code)
+			}
+			if called {
+				t.Fatalf("inner handler must not be called for oversized auth header")
+			}
+			if auth.token != "" {
+				t.Fatalf("authenticator must not be called for oversized auth header")
+			}
+		})
 	}
 }

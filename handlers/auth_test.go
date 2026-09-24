@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	authpkg "github.com/deicod/auth"
@@ -139,6 +140,33 @@ func TestMeHandlerUnauthorized(t *testing.T) {
 
 	if rr.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestMeHandlerRejectsOversizedAuthHeader(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		header string
+	}{
+		{"long token", "Bearer " + strings.Repeat("a", core.MaxTokenLength+1)},
+		{"whitespace padded", strings.Repeat(" ", core.MaxTokenLength+1) + "Bearer x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &fakeService{}
+			h := New(svc)
+			req := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+			req.Header.Set("Authorization", tc.header)
+			rr := httptest.NewRecorder()
+
+			h.Me().ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusUnauthorized {
+				t.Fatalf("expected 401, got %d", rr.Code)
+			}
+			if svc.meToken != "" {
+				t.Fatalf("service must not be called for oversized auth header")
+			}
+		})
 	}
 }
 

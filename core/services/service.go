@@ -34,7 +34,9 @@ const (
 	maxPasswordLength = 1024
 	maxEmailLength    = 254
 	// Limit token size to prevent hash/DB DoS from oversized inputs.
-	maxTokenLength = 1024
+	// Single source of truth is core.MaxTokenLength (also enforced by the
+	// HTTP layer before parsing Authorization headers).
+	maxTokenLength = core.MaxTokenLength
 	// Timeout for async tasks like email sending to prevent goroutine leaks.
 	asyncTaskTimeout = 30 * time.Second
 )
@@ -465,6 +467,13 @@ func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEm
 }
 
 func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (core.UserPublic, core.SessionPublic, error) {
+	if len(token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work,
+		// consistent with VerifyEmail/ResetPassword/ConfirmEmailChange.
+		// Check the raw length before trimming: this method hashes the
+		// untrimmed token, so whitespace padding must not bypass the bound.
+		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
+	}
 	if strings.TrimSpace(token) == "" {
 		return core.UserPublic{}, core.SessionPublic{}, core.ErrSessionNotFound
 	}
@@ -491,8 +500,17 @@ func (s *AuthService) AuthenticateSession(ctx context.Context, token string) (co
 }
 
 func (s *AuthService) Logout(ctx context.Context, token string) error {
+	if len(token) > maxTokenLength {
+		// SECURITY: check the raw length before trimming so whitespace-padded
+		// oversized input cannot reach hashing/DB work.
+		return core.ErrSessionNotFound
+	}
 	token = strings.TrimSpace(token)
 	if token == "" {
+		return core.ErrSessionNotFound
+	}
+	if len(token) > maxTokenLength {
+		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.ErrSessionNotFound
 	}
 	hash := security.HashToken(token)
@@ -517,6 +535,11 @@ func (s *AuthService) createSession(ctx context.Context, userID core.ID, userAge
 	token, hash, err := s.sessionTokens.Generate()
 	if err != nil {
 		return core.Session{}, "", err
+	}
+	if len(token) > maxTokenLength {
+		// SECURITY: never issue a token we would reject at authentication
+		// time; fail closed instead of storing an orphaned, unusable session.
+		return core.Session{}, "", fmt.Errorf("%w: session token exceeds maximum length", core.ErrTokenGeneration)
 	}
 
 	now := time.Now().UTC()
