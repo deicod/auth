@@ -262,6 +262,7 @@ mux.Handle("/profile", requireAuth(http.HandlerFunc(func(w http.ResponseWriter, 
 - Verification, password reset and email-change tokens are short-lived; customize TTLs through `cfg.Tokens`.
 - Passwords use Argon2id (via `cfg.Argon2`). Raising `Memory` or `Time` enforces stronger hashing requirements.
 - Set `cfg.Email` to an SMTP server (host, port, credentials, `UseSSL`) to enable automated verification/reset/email-change emails. With an empty host, the `email.NopSender` satisfies the interface so the flows still succeed in tests.
+- When both `cfg.Email.User` and `cfg.Email.Pass` are set, the mailer requires SMTP AUTH and negotiates a supported authentication mechanism. Without a password, it retains anonymous relay behavior.
 
 ## Error Handling
 
