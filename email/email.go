@@ -59,21 +59,28 @@ func (m *Mailer) send(ctx context.Context, recipient, subject, body string) erro
 	msg.Subject(subject)
 	msg.SetBodyString(mail.TypeTextPlain, body)
 
+	client, err := m.newClient()
+	if err != nil {
+		return err
+	}
+	return client.DialAndSendWithContext(ctx, msg)
+}
+
+func (m *Mailer) newClient() (*mail.Client, error) {
 	opts := []mail.Option{
 		mail.WithPort(m.cfg.Port),
 		mail.WithUsername(m.cfg.User),
 		mail.WithPassword(m.cfg.Pass),
 		mail.WithTLSPolicy(m.tlsPolicy()),
 	}
+	// Username and password alone do not enable authentication in go-mail.
+	if m.cfg.User != "" && m.cfg.Pass != "" {
+		opts = append(opts, mail.WithSMTPAuth(mail.SMTPAuthAutoDiscover))
+	}
 	if m.cfg.UseSSL {
 		opts = append(opts, mail.WithSSL())
 	}
-	client, err := mail.NewClient(m.cfg.Host, opts...)
-	if err != nil {
-		return err
-	}
-
-	return client.DialAndSendWithContext(ctx, msg)
+	return mail.NewClient(m.cfg.Host, opts...)
 }
 
 func (m *Mailer) fromAddress() string {
