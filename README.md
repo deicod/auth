@@ -269,6 +269,7 @@ mux.Handle("/profile", requireAuth(http.HandlerFunc(func(w http.ResponseWriter, 
 - Passwords use Argon2id (via `cfg.Argon2`). Raising `Memory` or `Time` enforces stronger hashing requirements.
 - Set `cfg.Email` to an SMTP server (host, port, credentials, `UseSSL`) to enable automated verification/reset/email-change emails. With an empty host, the `email.NopSender` satisfies the interface so the flows still succeed in tests.
 - When both `cfg.Email.User` and `cfg.Email.Pass` are set, the mailer requires SMTP AUTH and negotiates a supported authentication mechanism. Without a password, it retains anonymous relay behavior.
+- Set `cfg.Email.VerificationURL` and `cfg.Email.PasswordResetURL` to your application's absolute HTTP(S) page URLs to include direct links alongside the original tokens. The mailer appends a URL-encoded `token` query parameter and preserves other query parameters. Leaving a URL empty keeps the token-only email. The application chooses its domain and routes; the library does not assume them. Configure your reverse proxy to omit query strings and referrers from access logs so tokens in links are not recorded.
 
 ## Error Handling
 

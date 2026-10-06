@@ -2,7 +2,9 @@ package email
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
@@ -26,14 +28,36 @@ func NewMailer(cfg config.Mail) *Mailer {
 
 func (m *Mailer) SendVerification(ctx context.Context, user core.User, token string) error {
 	subject := "Verify your email"
-	body := fmt.Sprintf("Hello %s,\n\nUse the following token to verify your email: %s\n", user.Username, token)
+	body, err := tokenEmailBody(user.Username, token, "verify your email", m.cfg.VerificationURL)
+	if err != nil {
+		return err
+	}
 	return m.send(ctx, user.Email, subject, body)
 }
 
 func (m *Mailer) SendPasswordReset(ctx context.Context, user core.User, token string) error {
 	subject := "Reset your password"
-	body := fmt.Sprintf("Hello %s,\n\nUse the following token to reset your password: %s\n", user.Username, token)
+	body, err := tokenEmailBody(user.Username, token, "reset your password", m.cfg.PasswordResetURL)
+	if err != nil {
+		return err
+	}
 	return m.send(ctx, user.Email, subject, body)
+}
+
+func tokenEmailBody(username, token, action, targetURL string) (string, error) {
+	body := fmt.Sprintf("Hello %s,\n\nUse the following token to %s: %s\n", username, action, token)
+	if targetURL == "" {
+		return body, nil
+	}
+	u, err := url.Parse(targetURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+		// Do not include URLs or tokens in errors that callers may log.
+		return "", errors.New("email link must be an absolute HTTP(S) URL without credentials or fragment")
+	}
+	query := u.Query()
+	query.Set("token", token)
+	u.RawQuery = query.Encode()
+	return body + fmt.Sprintf("\nOpen this link to %s:\n%s\n", action, u.String()), nil
 }
 
 func (m *Mailer) SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error {
