@@ -54,10 +54,34 @@ func TestTokenEmailWithoutLink(t *testing.T) {
 	}
 }
 
+func TestTokenEmailPreservesSemicolonQueryParameters(t *testing.T) {
+	body, err := tokenEmailBody("alice", "new-token", "verify your email",
+		"https://example.com/auth/verify?returnTo=/dashboard;mode=compact&other=value;part&token=old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	link, err := url.Parse(lines[len(lines)-1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, err := url.ParseQuery(link.RawQuery)
+	if err != nil {
+		t.Fatal("email link query must have valid URL encoding")
+	}
+	if query.Get("returnTo") != "/dashboard;mode=compact" || query.Get("other") != "value;part" {
+		t.Fatal("email links must preserve semicolons in existing query values")
+	}
+	if query.Get("token") != "new-token" || len(query["token"]) != 1 {
+		t.Fatal("email link must replace the existing token")
+	}
+}
+
 func TestTokenEmailRejectsInvalidLinksWithoutLeakingSecrets(t *testing.T) {
 	for _, target := range []string{
 		"/auth/verify", "javascript:secret", "https://", "https://secret@example.com/auth/reset",
 		"https://example.com/auth/reset#secret", "https://example.com/%secret",
+		"https://example.com/auth/reset?secret=%", "https://example.com/auth/reset?returnTo=/dashboard&token=%zzsecret",
 	} {
 		body, err := tokenEmailBody("alice", "secret-token", "reset your password", target)
 		if err == nil || body != "" {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
@@ -54,7 +55,13 @@ func tokenEmailBody(username, token, action, targetURL string) (string, error) {
 		// Do not include URLs or tokens in errors that callers may log.
 		return "", errors.New("email link must be an absolute HTTP(S) URL without credentials or fragment")
 	}
-	query := u.Query()
+	// Semicolons are valid URL query characters, but ParseQuery rejects them
+	// unless escaped. Encode them before parsing instead of silently dropping
+	// existing parameters through URL.Query's ignored parse errors.
+	query, err := url.ParseQuery(strings.ReplaceAll(u.RawQuery, ";", "%3B"))
+	if err != nil {
+		return "", errors.New("email link query must use valid URL encoding")
+	}
 	query.Set("token", token)
 	u.RawQuery = query.Encode()
 	return body + fmt.Sprintf("\nOpen this link to %s:\n%s\n", action, u.String()), nil
