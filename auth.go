@@ -10,6 +10,7 @@ import (
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core"
+	"github.com/deicod/auth/email"
 	"github.com/deicod/auth/mgo"
 	pgxbackend "github.com/deicod/auth/pgx"
 	sqlitebackend "github.com/deicod/auth/sqlite"
@@ -107,40 +108,51 @@ func DefaultConfig() Config {
 // NewService initializes the auth service with the chosen backend and configuration.
 // It returns an error if the selected backend's config is missing.
 func NewService(ctx context.Context, cfg Config) (Service, error) {
+	return newService(ctx, cfg, nil)
+}
+
+// NewServiceWithMailer initializes the auth service with a custom email sender.
+// The sender can render application-specific templates or use a non-SMTP delivery
+// provider. Passing nil preserves NewService's built-in SMTP/NopSender behavior.
+func NewServiceWithMailer(ctx context.Context, cfg Config, mailer email.Sender) (Service, error) {
+	return newService(ctx, cfg, mailer)
+}
+
+func newService(ctx context.Context, cfg Config, mailer email.Sender) (Service, error) {
 	switch cfg.Backend {
 	case BackendMongo:
 		if cfg.Mongo == nil {
 			return nil, errors.New("mongo config is required")
 		}
-		return mgo.NewService(ctx, mgo.ServiceConfig{
+		return mgo.NewServiceWithMailer(ctx, mgo.ServiceConfig{
 			Mongo:   *cfg.Mongo,
 			Session: cfg.Session,
 			Tokens:  cfg.Tokens,
 			Argon2:  cfg.Argon2,
 			Email:   cfg.Email,
-		})
+		}, mailer)
 	case BackendPostgres:
 		if cfg.Pgx == nil {
 			return nil, errors.New("pgx config is required")
 		}
-		return pgxbackend.NewService(ctx, pgxbackend.ServiceConfig{
+		return pgxbackend.NewServiceWithMailer(ctx, pgxbackend.ServiceConfig{
 			Pgx:     *cfg.Pgx,
 			Session: cfg.Session,
 			Tokens:  cfg.Tokens,
 			Argon2:  cfg.Argon2,
 			Email:   cfg.Email,
-		})
+		}, mailer)
 	case BackendSQLite:
 		if cfg.Sqlite == nil {
 			return nil, errors.New("sqlite config is required")
 		}
-		return sqlitebackend.NewService(ctx, sqlitebackend.ServiceConfig{
+		return sqlitebackend.NewServiceWithMailer(ctx, sqlitebackend.ServiceConfig{
 			Sqlite:  *cfg.Sqlite,
 			Session: cfg.Session,
 			Tokens:  cfg.Tokens,
 			Argon2:  cfg.Argon2,
 			Email:   cfg.Email,
-		})
+		}, mailer)
 	default:
 		return nil, fmt.Errorf("unsupported backend %q", cfg.Backend)
 	}

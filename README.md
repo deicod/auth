@@ -285,16 +285,17 @@ type Sender interface {
 }
 ```
 
-Your implementation is responsible for rendering the desired subject/body/template and delivering the message. Inject it as `Mailer` when constructing the core service:
+Your implementation is responsible for rendering the desired subject/body/template and delivering the message. Pass it to the high-level factory with `auth.NewServiceWithMailer`:
 
 ```go
-svc, err := services.New(services.Dependencies{
-    // Stores, hashers and token generators omitted here.
-    Mailer: myMailer,
-})
+cfg := auth.DefaultConfig()
+cfg.Backend = auth.BackendSQLite
+cfg.Sqlite.DSN = "file:auth.db?_foreign_keys=on"
+
+svc, err := auth.NewServiceWithMailer(ctx, cfg, myMailer)
 ```
 
-This makes the email presentation layer fully application-defined without changing the authentication flows or token lifecycle. The convenience factory `auth.NewService` continues to construct the built-in SMTP mailer from `cfg.Email`; use the lower-level `core/services` constructor when you need a custom `email.Sender`.
+The custom sender is used for verification, password-reset and email-change messages across all backends. Passing `nil` to `NewServiceWithMailer` is equivalent to `NewService`: the existing `cfg.Email` SMTP configuration is used, or `email.NopSender` when the SMTP host is empty. Existing `auth.Config` values and `auth.NewService(ctx, cfg)` callers therefore remain unchanged.
 
 ## Error Handling
 
