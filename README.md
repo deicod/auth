@@ -272,6 +272,30 @@ mux.Handle("/profile", requireAuth(http.HandlerFunc(func(w http.ResponseWriter, 
 - When both `cfg.Email.User` and `cfg.Email.Pass` are set, the mailer requires SMTP AUTH and negotiates a supported authentication mechanism. Without a password, it retains anonymous relay behavior.
 - Set `cfg.Email.VerificationURL` and `cfg.Email.PasswordResetURL` to your application's absolute HTTP(S) page URLs to include direct links alongside the original tokens. The mailer appends a URL-encoded `token` query parameter and preserves other query parameters. Leaving a URL empty keeps the token-only email. The application chooses its domain and routes; the library does not assume them. Configure your reverse proxy to omit query strings and referrers from access logs so tokens in links are not recorded.
 
+### Custom Email Templates and Delivery
+
+The authentication core is not tied to the built-in plaintext SMTP messages. Applications that need branded HTML, localized copy, their own template engine, or a different mail provider can implement the `email.Sender` interface:
+
+```go
+type Sender interface {
+    SendVerification(ctx context.Context, user core.User, token string) error
+    SendPasswordReset(ctx context.Context, user core.User, token string) error
+    SendEmailChange(ctx context.Context, user core.User, newEmail, token string) error
+    SendEmailChangeAlert(ctx context.Context, user core.User, newEmail string) error
+}
+```
+
+Your implementation is responsible for rendering the desired subject/body/template and delivering the message. Inject it as `Mailer` when constructing the core service:
+
+```go
+svc, err := services.New(services.Dependencies{
+    // Stores, hashers and token generators omitted here.
+    Mailer: myMailer,
+})
+```
+
+This makes the email presentation layer fully application-defined without changing the authentication flows or token lifecycle. The convenience factory `auth.NewService` continues to construct the built-in SMTP mailer from `cfg.Email`; use the lower-level `core/services` constructor when you need a custom `email.Sender`.
+
 ## Error Handling
 
 Service methods return errors from `core/errors.go` (`ErrEmailExists`, `ErrInvalidCredentials`, `ErrTokenExpired`, etc.). The provided handlers already translate them to HTTP status codes, but you can wrap the service with your own transport knowing the error contracts are consistent across backends.
