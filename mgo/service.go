@@ -20,6 +20,12 @@ type Service struct {
 }
 
 func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
+	return NewServiceWithMailer(ctx, cfg, nil)
+}
+
+// NewServiceWithMailer creates a service using mailer when non-nil. A nil mailer
+// preserves the built-in SMTP/NopSender behavior configured through cfg.Email.
+func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.Sender) (*Service, error) {
 	if cfg.Mongo.URI == "" {
 		return nil, errors.New("mongo URI is required")
 	}
@@ -96,9 +102,11 @@ func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
-	mailer := email.Sender(email.NopSender{})
-	if cfg.Email.Host != "" {
-		mailer = email.NewMailer(cfg.Email)
+	if mailer == nil {
+		mailer = email.Sender(email.NopSender{})
+		if cfg.Email.Host != "" {
+			mailer = email.NewMailer(cfg.Email)
+		}
 	}
 
 	usersRepo := repos.NewUserRepository(db.Collection(mongoCfg.UsersCollection), timeout)
