@@ -6,10 +6,10 @@
 [![GitHub Release](https://img.shields.io/github/v/tag/deicod/auth)](https://github.com/deicod/auth/tags)
 [![License](https://img.shields.io/github/license/deicod/auth)](LICENSE)
 
-`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes a single `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB or `pgx` for PostgreSQL) at runtime.
+`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes a single `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB, `pgx` for PostgreSQL or `sqlite` for SQLite) at runtime.
 
 ## Highlights
-- `auth.Service` defines the full authentication surface (register, login, forgot/reset password, email verification/change) and can be backed by MongoDB or PostgreSQL without touching the rest of your code.
+- `auth.Service` defines the full authentication surface (register, login, forgot/reset password, email verification/change) and can be backed by MongoDB, PostgreSQL or SQLite without touching the rest of your code.
 - `core` holds the shared commands, results, errors and user/session representations to keep handlers and services storage-neutral.
 - Ready-to-use HTTP handlers (`handlers.AuthHandlers`) turn the service into JSON endpoints for `/register`, `/login`, `/logout`, `/me`, email verification and password reset workflows.
 - Security defaults baked in: Argon2id password hashing, opaque session tokens, short-lived verification/reset/email-change tokens and SMTP integrations for transactional emails.
@@ -25,7 +25,7 @@
 | `handlers/` | JSON HTTP handlers that wrap any `auth.Service`. |
 | `mgo/` | MongoDB service implementation, repositories and configuration helpers. |
 | `pgx/` | PostgreSQL (pgxpool) implementation with migrations and repositories. |
-| `sqlite/` | SQLite (CGO) implementation with migrations and repositories. |
+| `sqlite/` | SQLite implementation using `modernc.org/sqlite` (pure Go, no CGO) with migrations and repositories. |
 | `config/` | Shared configuration structs for sessions, tokens, Argon2 and SMTP. |
 | `email/` | SMTP sender implementation with a `NopSender` fallback. |
 
@@ -70,6 +70,7 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 - `MaxOpenConns`, `MaxIdleConns`, `ConnMaxLifetime`: Connection pool settings.
 - `OperationTimeout`: Context deadline for queries.
 - SQL migrations are embedded and applied automatically on connection.
+- Uses `modernc.org/sqlite`, a pure-Go SQLite driver, so no CGO toolchain is required.
 
 ## Example: MongoDB Backend (`mgo`)
 
