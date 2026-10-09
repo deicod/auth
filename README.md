@@ -6,7 +6,7 @@
 [![GitHub Release](https://img.shields.io/github/v/tag/deicod/auth)](https://github.com/deicod/auth/tags)
 [![License](https://img.shields.io/github/license/deicod/auth)](LICENSE)
 
-`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes an `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB, `pgx` for PostgreSQL or `sqlite` for SQLite) at runtime. PostgreSQL and SQLite also provide optional management and transaction capabilities.
+`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes an `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB, `pgx` for PostgreSQL or `sqlite` for SQLite) at runtime. All three backends also provide optional management and transaction capabilities.
 
 ## Highlights
 - `auth.Service` defines the full authentication surface (register, login, forgot/reset password, email verification/change) and can be backed by MongoDB, PostgreSQL or SQLite without touching the rest of your code.
@@ -20,14 +20,18 @@
 
 `auth.NewManagementService` (or `NewManagementServiceWithMailer`) adds sessionless
 password verification, user-wide session revocation, validated username updates
-and role updates for PostgreSQL and SQLite. The existing `auth.Service` interface
+and role updates for MongoDB, PostgreSQL and SQLite. The existing `auth.Service` interface
 and factories retain their signatures.
 
-Backend services expose `WithTx(ctx, tx)` for an existing `pgx.Tx` or `*sql.Tx`,
-and `InTx(ctx, callback)` for a shared auth/application transaction. Bound token
+SQL services expose `WithTx(ctx, tx)` for an existing `pgx.Tx` or `*sql.Tx`.
+MongoDB exposes `WithTx(ctx)` for an active native session transaction; it requires
+a replica set or sharded cluster. Every backend provides `InTx(ctx, callback)`
+for a shared auth/application transaction. Bound token
 completion methods take an explicit `core.MutationPolicy` checked before
 credential changes or token consumption. See [the API and migration guide](docs/management.md)
 for ownership, locking, examples and legacy username collision handling.
+Use `./scripts/test-mongo.sh go test -race ./...` to run real PSMDB tests locally
+with ephemeral Docker replica-set and standalone fixtures.
 
 ## Package Map
 
@@ -68,7 +72,7 @@ Start with `auth.DefaultConfig()` and override what you need. Important fields:
 - `Database`: database name.
 - `{Users,Sessions,Verification,PasswordReset,EmailChange}Collection`: collection names (defaults provided).
 - `OperationTimeout`: per call timeout for repository operations.
-- The Mongo service now ensures the essential indexes (unique `email`/`username`, unique `token_hash` values, TTL on `expires_at`) the first time it connects, so tokens and sessions expire automatically even if you forget to add indexes manually.
+- The Mongo service ensures the essential indexes (unique `email`, case-insensitive unique `username`, unique `token_hash` values, TTL on `expires_at`) when it connects. Legacy username collisions block startup without rewriting accounts; see [the migration guide](docs/management.md#mongo-username-index-upgrade).
 
 ### PostgreSQL Config (`pgx.Config`)
 - `DSN`: PostgreSQL connection string (e.g. `postgres://user:pass@localhost:5432/auth?sslmode=disable`).

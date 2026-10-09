@@ -356,13 +356,16 @@ func (s *AuthService) resetPassword(ctx context.Context, cmd core.ResetPasswordC
 	}
 
 	now := time.Now().UTC()
+	// Claim before credential/session writes. A conditional store must reject a
+	// racing loser before it can overwrite the successful caller's password.
+	// Outside a transaction, a later storage failure leaves the token spent.
+	if err := s.stores.PasswordResets.Consume(ctx, token.ID, now); err != nil {
+		return core.UserPublic{}, err
+	}
 	if err := s.stores.Users.UpdateFields(ctx, token.UserID, map[string]interface{}{
 		"password_hash": hashed,
 		"updated_at":    now,
 	}); err != nil {
-		return core.UserPublic{}, err
-	}
-	if err := s.stores.PasswordResets.Consume(ctx, token.ID, now); err != nil {
 		return core.UserPublic{}, err
 	}
 	if err := s.stores.Sessions.RevokeByUser(ctx, token.UserID); err != nil {

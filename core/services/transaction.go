@@ -6,7 +6,7 @@ import (
 	"github.com/deicod/auth/core"
 )
 
-// Transaction exposes synchronous operations bound to one SQL transaction.
+// Transaction exposes synchronous operations bound to one backend transaction.
 // It must not outlive that transaction or be used concurrently. Abort the unit
 // of work on any error. Use a backend's WithTx or InTx to obtain this object.
 type Transaction struct {

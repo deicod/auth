@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -54,6 +55,12 @@ func (r *PasswordResetRepository) Consume(ctx context.Context, id bson.ObjectID,
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
-	_, err := r.coll.UpdateByID(ctx, id, bson.M{"$set": bson.M{"consumed_at": consumedAt}})
-	return ctxutil.NormalizeError(err, "mgo.password_reset.consume")
+	result, err := r.coll.UpdateOne(ctx, bson.M{"_id": id, "consumed_at": nil}, bson.M{"$set": bson.M{"consumed_at": consumedAt}})
+	if err != nil {
+		return ctxutil.NormalizeError(err, "mgo.password_reset.consume")
+	}
+	if result.MatchedCount == 0 {
+		return core.ErrTokenConsumed
+	}
+	return nil
 }

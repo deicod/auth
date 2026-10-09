@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -55,8 +56,14 @@ func (r *VerificationRepository) Consume(ctx context.Context, id bson.ObjectID, 
 	defer cancel()
 
 	update := bson.M{"$set": bson.M{"consumed_at": consumedAt}}
-	_, err := r.coll.UpdateByID(ctx, id, update)
-	return ctxutil.NormalizeError(err, "mgo.verification.consume")
+	result, err := r.coll.UpdateOne(ctx, bson.M{"_id": id, "consumed_at": nil}, update)
+	if err != nil {
+		return ctxutil.NormalizeError(err, "mgo.verification.consume")
+	}
+	if result.MatchedCount == 0 {
+		return core.ErrTokenConsumed
+	}
+	return nil
 }
 
 func (r *VerificationRepository) DeleteByID(ctx context.Context, id bson.ObjectID) error {

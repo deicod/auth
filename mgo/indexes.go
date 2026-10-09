@@ -2,8 +2,11 @@ package mgo
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/deicod/auth/core"
+	"github.com/deicod/auth/mgo/repos"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -17,6 +20,19 @@ func ensureIndexes(ctx context.Context, db *mongo.Database, cfg Config) error {
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	// Add the race guard without rewriting accounts or dropping the legacy
+	// unique index. A failed build leaves legacy data and indexes intact.
+	_, err := db.Collection(cfg.UsersCollection).Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "username", Value: 1}},
+		Options: options.Index().SetName("users_username_nocase_unique").SetUnique(true).SetCollation(repos.UsernameCollation()),
+	})
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return fmt.Errorf("%w: resolve existing case-insensitive username collisions before restarting auth", core.ErrUsernameExists)
+		}
+		return err
+	}
 
 	ttlIndex := func(name string) *options.IndexOptionsBuilder {
 		return options.Index().SetExpireAfterSeconds(0).SetName(name)
