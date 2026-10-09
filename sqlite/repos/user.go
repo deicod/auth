@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/sqlite/models"
 	"github.com/google/uuid"
@@ -27,12 +28,17 @@ type CreateUserParams struct {
 
 // UserRepository handles user persistence in SQLite.
 type UserRepository struct {
-	db      *sql.DB
+	db      DBTX
 	timeout time.Duration
 }
 
 // NewUserRepository creates a new UserRepository.
 func NewUserRepository(db *sql.DB, timeout time.Duration) *UserRepository {
+	return NewUserRepositoryWithDB(db, timeout)
+}
+
+// NewUserRepositoryWithDB uses a pool or an existing transaction.
+func NewUserRepositoryWithDB(db DBTX, timeout time.Duration) *UserRepository {
 	return &UserRepository{db: db, timeout: timeout}
 }
 
@@ -96,7 +102,7 @@ func (r *UserRepository) Create(ctx context.Context, params CreateUserParams) (m
 		formatTimePtr(params.LastLoginAt),
 	)
 	if err != nil {
-		return models.User{}, ctxutil.NormalizeError(err, "sqlite.user.insert")
+		return models.User{}, userError(err, "sqlite.user.insert")
 	}
 
 	return models.User{
@@ -178,8 +184,18 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id string, fields map
 	args = append(args, id)
 
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setParts, ", "))
-	_, err := r.db.ExecContext(ctx, query, args...)
-	return ctxutil.NormalizeError(err, "sqlite.user.update_fields")
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return userError(err, "sqlite.user.update_fields")
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return core.ErrUserNotFound
+	}
+	return nil
 }
 
 // DeleteByID removes a user by ID.

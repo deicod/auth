@@ -20,12 +20,17 @@ type CreateVerificationParams struct {
 
 // VerificationRepository handles verification token persistence in SQLite.
 type VerificationRepository struct {
-	db      *sql.DB
+	db      DBTX
 	timeout time.Duration
 }
 
 // NewVerificationRepository creates a new VerificationRepository.
 func NewVerificationRepository(db *sql.DB, timeout time.Duration) *VerificationRepository {
+	return NewVerificationRepositoryWithDB(db, timeout)
+}
+
+// NewVerificationRepositoryWithDB uses a pool or an existing transaction.
+func NewVerificationRepositoryWithDB(db DBTX, timeout time.Duration) *VerificationRepository {
 	return &VerificationRepository{db: db, timeout: timeout}
 }
 

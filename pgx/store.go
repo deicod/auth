@@ -70,7 +70,7 @@ func (s *userStore) FindByUsername(ctx context.Context, username string) (core.U
 func (s *userStore) FindByID(ctx context.Context, id core.ID) (core.User, error) {
 	uuid, err := pgxmodels.UUIDFromCore(id)
 	if err != nil {
-		return core.User{}, err
+		return core.User{}, core.ErrUserNotFound
 	}
 	user, err := s.repo.FindByID(ctx, uuid)
 	if err != nil {

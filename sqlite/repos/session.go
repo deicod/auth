@@ -22,12 +22,17 @@ type CreateSessionParams struct {
 
 // SessionRepository handles session persistence in SQLite.
 type SessionRepository struct {
-	db      *sql.DB
+	db      DBTX
 	timeout time.Duration
 }
 
 // NewSessionRepository creates a new SessionRepository.
 func NewSessionRepository(db *sql.DB, timeout time.Duration) *SessionRepository {
+	return NewSessionRepositoryWithDB(db, timeout)
+}
+
+// NewSessionRepositoryWithDB uses a pool or an existing transaction.
+func NewSessionRepositoryWithDB(db DBTX, timeout time.Duration) *SessionRepository {
 	return &SessionRepository{db: db, timeout: timeout}
 }
 

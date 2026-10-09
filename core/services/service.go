@@ -115,15 +115,15 @@ func (s *AuthService) Register(ctx context.Context, cmd core.RegisterCommand) (c
 		return core.AuthResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
 	}
 
-	username := strings.TrimSpace(cmd.Username)
-	if !isValidUsername(username) {
-		return core.AuthResult{}, fmt.Errorf("%w: invalid username (must be 3-30 chars, alphanumeric, underscore, or hyphen)", core.ErrInvalidInput)
+	username, err := normalizeUsername(cmd.Username)
+	if err != nil {
+		return core.AuthResult{}, err
 	}
 
 	if err := s.ensureEmailAvailable(ctx, email, ""); err != nil {
 		return core.AuthResult{}, err
 	}
-	if err := s.ensureUsernameAvailable(ctx, username); err != nil {
+	if err := s.ensureUsernameAvailable(ctx, username, ""); err != nil {
 		return core.AuthResult{}, err
 	}
 
@@ -226,6 +226,10 @@ func (s *AuthService) Login(ctx context.Context, cmd core.LoginCommand) (core.Au
 }
 
 func (s *AuthService) VerifyEmail(ctx context.Context, cmd core.VerifyEmailCommand) (core.VerifyEmailResult, error) {
+	return s.verifyEmail(ctx, cmd, nil)
+}
+
+func (s *AuthService) verifyEmail(ctx context.Context, cmd core.VerifyEmailCommand, policy core.MutationPolicy) (core.VerifyEmailResult, error) {
 	if len(cmd.Token) > maxTokenLength {
 		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.VerifyEmailResult{}, core.ErrTokenNotFound
@@ -244,6 +248,9 @@ func (s *AuthService) VerifyEmail(ctx context.Context, cmd core.VerifyEmailComma
 	}
 	if time.Now().UTC().After(token.ExpiresAt) {
 		return core.VerifyEmailResult{}, core.ErrTokenExpired
+	}
+	if err := checkPolicy(ctx, policy, core.MutationVerifyEmail, token.UserID); err != nil {
+		return core.VerifyEmailResult{}, err
 	}
 
 	now := time.Now().UTC()
@@ -305,6 +312,10 @@ func (s *AuthService) ForgotPassword(ctx context.Context, cmd core.ForgotPasswor
 }
 
 func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordCommand) (core.UserPublic, error) {
+	return s.resetPassword(ctx, cmd, nil)
+}
+
+func (s *AuthService) resetPassword(ctx context.Context, cmd core.ResetPasswordCommand, policy core.MutationPolicy) (core.UserPublic, error) {
 	if len(cmd.Token) > maxTokenLength {
 		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.UserPublic{}, core.ErrTokenNotFound
@@ -333,6 +344,9 @@ func (s *AuthService) ResetPassword(ctx context.Context, cmd core.ResetPasswordC
 	}
 
 	if err := validatePassword(cmd.NewPassword, s.passwordCfg); err != nil {
+		return core.UserPublic{}, err
+	}
+	if err := checkPolicy(ctx, policy, core.MutationResetPassword, token.UserID); err != nil {
 		return core.UserPublic{}, err
 	}
 
@@ -425,6 +439,10 @@ func (s *AuthService) InitiateEmailChange(ctx context.Context, cmd core.ChangeEm
 }
 
 func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand) (core.ChangeEmailResult, error) {
+	return s.confirmEmailChange(ctx, cmd, nil)
+}
+
+func (s *AuthService) confirmEmailChange(ctx context.Context, cmd core.ConfirmEmailChangeCommand, policy core.MutationPolicy) (core.ChangeEmailResult, error) {
 	if len(cmd.Token) > maxTokenLength {
 		// SECURITY: reject oversized tokens early to avoid hashing/DB work.
 		return core.ChangeEmailResult{}, core.ErrTokenNotFound
@@ -460,6 +478,9 @@ func (s *AuthService) ConfirmEmailChange(ctx context.Context, cmd core.ConfirmEm
 		return core.ChangeEmailResult{}, fmt.Errorf("%w: invalid email format", core.ErrInvalidInput)
 	}
 	if err := s.ensureEmailAvailable(ctx, newEmail, req.UserID); err != nil {
+		return core.ChangeEmailResult{}, err
+	}
+	if err := checkPolicy(ctx, policy, core.MutationConfirmEmailChange, req.UserID); err != nil {
 		return core.ChangeEmailResult{}, err
 	}
 
@@ -645,16 +666,19 @@ func (s *AuthService) ensureEmailAvailable(ctx context.Context, email string, ex
 	return core.ErrEmailExists
 }
 
-func (s *AuthService) ensureUsernameAvailable(ctx context.Context, username string) error {
+func (s *AuthService) ensureUsernameAvailable(ctx context.Context, username string, exclude core.ID) error {
 	if username == "" {
 		return fmt.Errorf("%w: username is required", core.ErrInvalidInput)
 	}
-	_, err := s.stores.Users.FindByUsername(ctx, username)
+	user, err := s.stores.Users.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, core.ErrUserNotFound) {
 			return nil
 		}
 		return err
+	}
+	if exclude != "" && user.ID == exclude {
+		return nil
 	}
 	return core.ErrUsernameExists
 }
@@ -676,21 +700,6 @@ func isValidEmail(email string) bool {
 	}
 	// Ensure the parsed address matches the input (disallow "Alice <alice@example.com>")
 	return addr.Address == email
-}
-
-// isValidUsername checks if the username is 3-30 chars long and alphanumeric (plus _ and -).
-// This manual check is significantly faster than using a regular expression.
-func isValidUsername(username string) bool {
-	if len(username) < 3 || len(username) > 30 {
-		return false
-	}
-	for i := 0; i < len(username); i++ {
-		c := username[i]
-		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '_' && c != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 func validatePassword(password string, cfg config.Password) error {

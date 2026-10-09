@@ -32,6 +32,22 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     permissions: {}
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: auth
+          POSTGRES_PASSWORD: auth-test
+          POSTGRES_DB: auth
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U auth"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AUTH_TEST_POSTGRES_DSN: postgres://auth:auth-test@localhost:5432/auth?sslmode=disable
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2

@@ -13,11 +13,16 @@ import (
 )
 
 type SessionRepository struct {
-	pool    *pgxpool.Pool
+	pool    DBTX
 	timeout time.Duration
 }
 
 func NewSessionRepository(pool *pgxpool.Pool, timeout time.Duration) *SessionRepository {
+	return NewSessionRepositoryWithDB(pool, timeout)
+}
+
+// NewSessionRepositoryWithDB uses a pool or an existing transaction.
+func NewSessionRepositoryWithDB(pool DBTX, timeout time.Duration) *SessionRepository {
 	return &SessionRepository{pool: pool, timeout: timeout}
 }
 

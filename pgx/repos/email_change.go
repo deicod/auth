@@ -13,11 +13,16 @@ import (
 )
 
 type EmailChangeRepository struct {
-	pool    *pgxpool.Pool
+	pool    DBTX
 	timeout time.Duration
 }
 
 func NewEmailChangeRepository(pool *pgxpool.Pool, timeout time.Duration) *EmailChangeRepository {
+	return NewEmailChangeRepositoryWithDB(pool, timeout)
+}
+
+// NewEmailChangeRepositoryWithDB uses a pool or an existing transaction.
+func NewEmailChangeRepositoryWithDB(pool DBTX, timeout time.Duration) *EmailChangeRepository {
 	return &EmailChangeRepository{pool: pool, timeout: timeout}
 }
 
@@ -44,7 +49,7 @@ func (r *EmailChangeRepository) Create(ctx context.Context, req models.EmailChan
 func (r *EmailChangeRepository) FindByHash(ctx context.Context, hash string) (models.EmailChange, error) {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
-	row := r.pool.QueryRow(ctx, `SELECT id, user_id, new_email, token_hash, expires_at, created_at, consumed_at FROM email_change_requests WHERE token_hash=$1`, hash)
+	row := r.pool.QueryRow(ctx, `SELECT id, user_id, new_email, token_hash, expires_at, created_at, consumed_at FROM email_change_requests WHERE token_hash=$1`+tokenLock(r.pool), hash)
 	req, err := scanEmailChange(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

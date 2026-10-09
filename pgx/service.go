@@ -9,13 +9,14 @@ import (
 	"github.com/deicod/auth/core/services"
 	"github.com/deicod/auth/email"
 	"github.com/deicod/auth/internal/security"
-	"github.com/deicod/auth/pgx/repos"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Service struct {
 	pool *pgxpool.Pool
 	*services.AuthService
+	*services.ManagementService
+	timeout time.Duration
 }
 
 func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
@@ -106,19 +107,7 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 		}
 	}
 
-	usersRepo := repos.NewUserRepository(pool, timeout)
-	sessionsRepo := repos.NewSessionRepository(pool, timeout)
-	verificationsRepo := repos.NewVerificationRepository(pool, timeout)
-	resetsRepo := repos.NewPasswordResetRepository(pool, timeout)
-	emailChangesRepo := repos.NewEmailChangeRepository(pool, timeout)
-
-	stores := services.Stores{
-		Users:          newUserStore(usersRepo),
-		Sessions:       newSessionStore(sessionsRepo),
-		Verifications:  newVerificationStore(verificationsRepo),
-		PasswordResets: newPasswordResetStore(resetsRepo),
-		EmailChanges:   newEmailChangeStore(emailChangesRepo),
-	}
+	stores := newStores(pool, timeout)
 
 	logic, err := services.New(services.Dependencies{
 		Stores:         stores,
@@ -134,7 +123,7 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 		return nil, err
 	}
 
-	return &Service{pool: pool, AuthService: logic}, nil
+	return &Service{pool: pool, AuthService: logic, ManagementService: services.NewManagementService(logic), timeout: timeout}, nil
 }
 
 func (s *Service) Close(context.Context) error {

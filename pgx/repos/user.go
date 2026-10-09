@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/pgx/models"
 	"github.com/google/uuid"
@@ -15,11 +16,16 @@ import (
 )
 
 type UserRepository struct {
-	pool    *pgxpool.Pool
+	pool    DBTX
 	timeout time.Duration
 }
 
 func NewUserRepository(pool *pgxpool.Pool, timeout time.Duration) *UserRepository {
+	return NewUserRepositoryWithDB(pool, timeout)
+}
+
+// NewUserRepositoryWithDB uses a pool or an existing transaction.
+func NewUserRepositoryWithDB(pool DBTX, timeout time.Duration) *UserRepository {
 	return &UserRepository{pool: pool, timeout: timeout}
 }
 
@@ -47,7 +53,7 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 		user.CreatedAt, user.UpdatedAt, user.VerifiedAt, user.LastLoginAt,
 	)
 	if err := row.Scan(&user.ID); err != nil {
-		return models.User{}, ctxutil.NormalizeError(err, "pgx.user.insert")
+		return models.User{}, userError(err, "pgx.user.insert")
 	}
 	return user, nil
 }
@@ -71,8 +77,9 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
-	// Use LOWER() for case-insensitive match
-	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE LOWER(username)=LOWER($1)`, username)
+	// Accepted usernames are ASCII. Explicit C collation keeps lookup and the
+	// unique index consistent even under locales with different I/i folding.
+	row := r.pool.QueryRow(ctx, `SELECT id, email, username, password_hash, role, is_verified, created_at, updated_at, verified_at, last_login_at FROM users WHERE LOWER(username COLLATE "C")=LOWER($1 COLLATE "C")`, username)
 	user, err := scanUser(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -121,8 +128,14 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id uuid.UUID, fields 
 	}
 	args = append(args, id)
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id=$%d", strings.Join(setParts, ", "), idx)
-	_, err := r.pool.Exec(ctx, query, args...)
-	return ctxutil.NormalizeError(err, "pgx.user.update_fields")
+	result, err := r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return userError(err, "pgx.user.update_fields")
+	}
+	if result.RowsAffected() == 0 {
+		return core.ErrUserNotFound
+	}
+	return nil
 }
 
 func (r *UserRepository) DeleteByID(ctx context.Context, id uuid.UUID) error {
