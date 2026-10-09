@@ -21,12 +21,17 @@ type CreateEmailChangeParams struct {
 
 // EmailChangeRepository handles email change request persistence in SQLite.
 type EmailChangeRepository struct {
-	db      *sql.DB
+	db      DBTX
 	timeout time.Duration
 }
 
 // NewEmailChangeRepository creates a new EmailChangeRepository.
 func NewEmailChangeRepository(db *sql.DB, timeout time.Duration) *EmailChangeRepository {
+	return NewEmailChangeRepositoryWithDB(db, timeout)
+}
+
+// NewEmailChangeRepositoryWithDB uses a pool or an existing transaction.
+func NewEmailChangeRepositoryWithDB(db DBTX, timeout time.Duration) *EmailChangeRepository {
 	return &EmailChangeRepository{db: db, timeout: timeout}
 }
 

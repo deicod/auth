@@ -13,11 +13,16 @@ import (
 )
 
 type VerificationRepository struct {
-	pool    *pgxpool.Pool
+	pool    DBTX
 	timeout time.Duration
 }
 
 func NewVerificationRepository(pool *pgxpool.Pool, timeout time.Duration) *VerificationRepository {
+	return NewVerificationRepositoryWithDB(pool, timeout)
+}
+
+// NewVerificationRepositoryWithDB uses a pool or an existing transaction.
+func NewVerificationRepositoryWithDB(pool DBTX, timeout time.Duration) *VerificationRepository {
 	return &VerificationRepository{pool: pool, timeout: timeout}
 }
 
@@ -45,7 +50,7 @@ func (r *VerificationRepository) FindByHash(ctx context.Context, hash string) (m
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
 
-	row := r.pool.QueryRow(ctx, `SELECT id, user_id, token_hash, expires_at, created_at, consumed_at FROM verification_tokens WHERE token_hash=$1`, hash)
+	row := r.pool.QueryRow(ctx, `SELECT id, user_id, token_hash, expires_at, created_at, consumed_at FROM verification_tokens WHERE token_hash=$1`+tokenLock(r.pool), hash)
 	token, err := scanVerification(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

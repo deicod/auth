@@ -6,7 +6,7 @@
 [![GitHub Release](https://img.shields.io/github/v/tag/deicod/auth)](https://github.com/deicod/auth/tags)
 [![License](https://img.shields.io/github/license/deicod/auth)](LICENSE)
 
-`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes a single `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB, `pgx` for PostgreSQL or `sqlite` for SQLite) at runtime.
+`github.com/deicod/auth` is a storage-agnostic authentication module that bundles the domain model, services and HTTP transport needed for user registration, login, email verification, password resets and email change flows. The package exposes an `auth.Service` interface while letting you pick the persistence layer (`mgo` for MongoDB, `pgx` for PostgreSQL or `sqlite` for SQLite) at runtime. PostgreSQL and SQLite also provide optional management and transaction capabilities.
 
 ## Highlights
 - `auth.Service` defines the full authentication surface (register, login, forgot/reset password, email verification/change) and can be backed by MongoDB, PostgreSQL or SQLite without touching the rest of your code.
@@ -15,6 +15,19 @@
 - Security defaults baked in: Argon2id password hashing, opaque session tokens, short-lived verification/reset/email-change tokens and SMTP integrations for transactional emails.
 - Rich configuration via `auth.Config` with sensible defaults plus knobs for session lifetime, token TTLs, Argon2 parameters and mail transport.
 - PGX backend ships with embedded SQL migrations, while the Mongo backend wires collections, indexes and repositories for you.
+
+## Management and shared transactions
+
+`auth.NewManagementService` (or `NewManagementServiceWithMailer`) adds sessionless
+password verification, user-wide session revocation, validated username updates
+and role updates for PostgreSQL and SQLite. The existing `auth.Service` interface
+and factories retain their signatures.
+
+Backend services expose `WithTx(ctx, tx)` for an existing `pgx.Tx` or `*sql.Tx`,
+and `InTx(ctx, callback)` for a shared auth/application transaction. Bound token
+completion methods take an explicit `core.MutationPolicy` checked before
+credential changes or token consumption. See [the API and migration guide](docs/management.md)
+for ownership, locking, examples and legacy username collision handling.
 
 ## Package Map
 

@@ -20,12 +20,17 @@ type CreatePasswordResetParams struct {
 
 // PasswordResetRepository handles password reset token persistence in SQLite.
 type PasswordResetRepository struct {
-	db      *sql.DB
+	db      DBTX
 	timeout time.Duration
 }
 
 // NewPasswordResetRepository creates a new PasswordResetRepository.
 func NewPasswordResetRepository(db *sql.DB, timeout time.Duration) *PasswordResetRepository {
+	return NewPasswordResetRepositoryWithDB(db, timeout)
+}
+
+// NewPasswordResetRepositoryWithDB uses a pool or an existing transaction.
+func NewPasswordResetRepositoryWithDB(db DBTX, timeout time.Duration) *PasswordResetRepository {
 	return &PasswordResetRepository{db: db, timeout: timeout}
 }
 

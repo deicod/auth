@@ -13,11 +13,16 @@ import (
 )
 
 type PasswordResetRepository struct {
-	pool    *pgxpool.Pool
+	pool    DBTX
 	timeout time.Duration
 }
 
 func NewPasswordResetRepository(pool *pgxpool.Pool, timeout time.Duration) *PasswordResetRepository {
+	return NewPasswordResetRepositoryWithDB(pool, timeout)
+}
+
+// NewPasswordResetRepositoryWithDB uses a pool or an existing transaction.
+func NewPasswordResetRepositoryWithDB(pool DBTX, timeout time.Duration) *PasswordResetRepository {
 	return &PasswordResetRepository{pool: pool, timeout: timeout}
 }
 
@@ -44,7 +49,7 @@ func (r *PasswordResetRepository) Create(ctx context.Context, token models.Passw
 func (r *PasswordResetRepository) FindByHash(ctx context.Context, hash string) (models.PasswordReset, error) {
 	ctx, cancel := r.withContext(ctx)
 	defer cancel()
-	row := r.pool.QueryRow(ctx, `SELECT id, user_id, token_hash, expires_at, created_at, consumed_at FROM password_reset_tokens WHERE token_hash=$1`, hash)
+	row := r.pool.QueryRow(ctx, `SELECT id, user_id, token_hash, expires_at, created_at, consumed_at FROM password_reset_tokens WHERE token_hash=$1`+tokenLock(r.pool), hash)
 	token, err := scanPasswordReset(row)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/deicod/auth/config"
 	"github.com/deicod/auth/core/services"
 	"github.com/deicod/auth/email"
 	"github.com/deicod/auth/internal/security"
-	"github.com/deicod/auth/sqlite/repos"
 	_ "modernc.org/sqlite"
 )
 
@@ -17,6 +17,8 @@ import (
 type Service struct {
 	db *sql.DB
 	*services.AuthService
+	*services.ManagementService
+	timeout time.Duration
 }
 
 // NewService creates a new SQLite-backed auth service.
@@ -113,22 +115,8 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 	}
 
 	// Create repositories
-	usersRepo := repos.NewUserRepository(db, timeout)
-	sessionsRepo := repos.NewSessionRepository(db, timeout)
-	verificationsRepo := repos.NewVerificationRepository(db, timeout)
-	resetsRepo := repos.NewPasswordResetRepository(db, timeout)
-	emailChangesRepo := repos.NewEmailChangeRepository(db, timeout)
+	stores := newStores(db, timeout)
 
-	// Create stores
-	stores := services.Stores{
-		Users:          newUserStore(usersRepo),
-		Sessions:       newSessionStore(sessionsRepo),
-		Verifications:  newVerificationStore(verificationsRepo),
-		PasswordResets: newPasswordResetStore(resetsRepo),
-		EmailChanges:   newEmailChangeStore(emailChangesRepo),
-	}
-
-	// Create auth service
 	logic, err := services.New(services.Dependencies{
 		Stores:         stores,
 		Hasher:         security.NewPasswordHasher(argonCfg),
@@ -146,7 +134,7 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 		return nil, err
 	}
 
-	return &Service{db: db, AuthService: logic}, nil
+	return &Service{db: db, AuthService: logic, ManagementService: services.NewManagementService(logic), timeout: timeout}, nil
 }
 
 // Close closes the database connection.
