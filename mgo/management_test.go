@@ -229,6 +229,16 @@ func TestMongoManagement(t *testing.T) {
 			t.Fatalf("I/i must conflict: %v", err)
 		}
 	})
+	t.Run("username_lookup_treats_input_as_literal", func(t *testing.T) {
+		user := f.register(t)
+		repo := repos.NewUserRepository(f.db.Collection(f.cfg.UsersCollection), 5*time.Second)
+		for _, name := range []string{`{"$ne":null}`, "$ne", "$where", "/.*/", "^.*$", user.User.Username[:5]} {
+			_, err := repo.FindByUsername(f.ctx, name)
+			if !errors.Is(err, mongo.ErrNoDocuments) {
+				t.Fatalf("lookup(%q) matched or interpreted query syntax: %v", name, err)
+			}
+		}
+	})
 	for _, mode := range []string{"service", "transaction", "repository"} {
 		t.Run("concurrent_username_"+mode, func(t *testing.T) {
 			users := []core.AuthResult{f.register(t), f.register(t)}

@@ -301,7 +301,8 @@ describes locale-dependent lowercasing, which is why the ASCII comparison is exp
 
 On startup, Mongo adds `users_username_nocase_unique` on `username` with
 `{locale: "en", strength: 2, alternate: "non-ignorable"}`. Username lookup uses
-equality with the identical collation instead of a case-insensitive regex.
+an explicit `$eq` string comparison in fixed BSON fields, with the identical
+collation instead of a case-insensitive regex.
 For auth's allowed ASCII usernames, this provides case-insensitive equality
 (including `I`/`i`) while preserving punctuation and digit-string differences.
 The database enforces that equality for concurrent registration and updates;

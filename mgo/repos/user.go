@@ -62,7 +62,14 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 
 	var user models.User
 	// Use the same collation as the final unique index, including ASCII I/i.
-	err := r.coll.FindOne(ctx, bson.M{"username": username}, options.FindOne().SetCollation(UsernameCollation())).Decode(&user)
+	// Fixed BSON fields and a string $eq operand keep input in the value position.
+	filter := struct {
+		Username struct {
+			Equal string `bson:"$eq"`
+		} `bson:"username"`
+	}{}
+	filter.Username.Equal = username
+	err := r.coll.FindOne(ctx, filter, options.FindOne().SetCollation(UsernameCollation())).Decode(&user)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return user, err
