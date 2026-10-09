@@ -260,8 +260,19 @@ independently of transaction support. As before, ordinary multi-document auth
 flows outside a transaction do not provide the shared atomicity or application
 policy guarantees of the bound API.
 
-This follows the [MongoDB Go driver transaction API](https://www.mongodb.com/docs/drivers/go/current/crud/transactions/)
-and [MongoDB production transaction requirements](https://www.mongodb.com/docs/manual/core/transactions-production-consideration/).
+`ResetPassword` validates the input, checks any bound policy and hashes the new
+password before claiming the token, then changes the password and revokes
+sessions. Mongo's conditional consume atomically admits one caller per token, so
+a racing loser returns `core.ErrTokenConsumed` without writing credentials or sessions,
+including on standalone servers. This ordering uses the shared reset logic.
+Outside a transaction, a storage failure after a successful claim leaves the
+token consumed; request a fresh reset link with `ForgotPassword`. An explicit
+transaction rolls the claim, credentials, session revocations and consumer
+writes back together on failure.
+
+This follows the [MongoDB Go driver transaction API](https://www.mongodb.com/docs/drivers/go/current/crud/transactions/),
+[MongoDB production transaction requirements](https://www.mongodb.com/docs/manual/core/transactions-production-consideration/)
+and [single-document conditional write semantics](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/).
 
 ## SQL schema upgrade
 
