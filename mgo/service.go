@@ -17,6 +17,8 @@ import (
 type Service struct {
 	client *mongo.Client
 	*services.AuthService
+	*services.ManagementService
+	mongoCfg Config
 }
 
 func NewService(ctx context.Context, cfg ServiceConfig) (*Service, error) {
@@ -109,19 +111,8 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 		}
 	}
 
-	usersRepo := repos.NewUserRepository(db.Collection(mongoCfg.UsersCollection), timeout)
-	sessionsRepo := repos.NewSessionRepository(db.Collection(mongoCfg.SessionsCollection), timeout)
-	verificationsRepo := repos.NewVerificationRepository(db.Collection(mongoCfg.VerificationCollection), timeout)
-	resetsRepo := repos.NewPasswordResetRepository(db.Collection(mongoCfg.PasswordResetCollection), timeout)
-	emailChangesRepo := repos.NewEmailChangeRepository(db.Collection(mongoCfg.EmailChangeCollection), timeout)
-
-	stores := services.Stores{
-		Users:          newUserStore(usersRepo),
-		Sessions:       newSessionStore(sessionsRepo),
-		Verifications:  newVerificationStore(verificationsRepo),
-		PasswordResets: newPasswordResetStore(resetsRepo),
-		EmailChanges:   newEmailChangeStore(emailChangesRepo),
-	}
+	mongoCfg.OperationTimeout = timeout
+	stores := newStores(db, mongoCfg)
 
 	logic, err := services.New(services.Dependencies{
 		Stores:         stores,
@@ -137,7 +128,17 @@ func NewServiceWithMailer(ctx context.Context, cfg ServiceConfig, mailer email.S
 		return nil, err
 	}
 
-	return &Service{client: client, AuthService: logic}, nil
+	return &Service{client: client, AuthService: logic, ManagementService: services.NewManagementService(logic), mongoCfg: mongoCfg}, nil
+}
+
+func newStores(db *mongo.Database, cfg Config) services.Stores {
+	return services.Stores{
+		Users:          newUserStore(repos.NewUserRepository(db.Collection(cfg.UsersCollection), cfg.OperationTimeout)),
+		Sessions:       newSessionStore(repos.NewSessionRepository(db.Collection(cfg.SessionsCollection), cfg.OperationTimeout)),
+		Verifications:  newVerificationStore(repos.NewVerificationRepository(db.Collection(cfg.VerificationCollection), cfg.OperationTimeout)),
+		PasswordResets: newPasswordResetStore(repos.NewPasswordResetRepository(db.Collection(cfg.PasswordResetCollection), cfg.OperationTimeout)),
+		EmailChanges:   newEmailChangeStore(repos.NewEmailChangeRepository(db.Collection(cfg.EmailChangeCollection), cfg.OperationTimeout)),
+	}
 }
 
 func (s *Service) Close(ctx context.Context) error {

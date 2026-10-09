@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
+	"github.com/deicod/auth/core"
 	"github.com/deicod/auth/internal/ctxutil"
 	"github.com/deicod/auth/mgo/models"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 type UserRepository struct {
@@ -37,7 +38,7 @@ func (r *UserRepository) Create(ctx context.Context, user models.User) (models.U
 		user.ID = bson.NewObjectID()
 	}
 	_, err := r.coll.InsertOne(ctx, user)
-	return user, ctxutil.NormalizeError(err, "mgo.user.insert")
+	return user, userError(err, "mgo.user.insert")
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (models.User, error) {
@@ -60,8 +61,8 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (m
 	defer cancel()
 
 	var user models.User
-	// Use regex for case-insensitive match
-	err := r.coll.FindOne(ctx, bson.M{"username": bson.M{"$regex": "^" + regexp.QuoteMeta(username) + "$", "$options": "i"}}).Decode(&user)
+	// Use the same collation as the final unique index, including ASCII I/i.
+	err := r.coll.FindOne(ctx, bson.M{"username": username}, options.FindOne().SetCollation(UsernameCollation())).Decode(&user)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return user, err
@@ -87,6 +88,9 @@ func (r *UserRepository) FindByID(ctx context.Context, id bson.ObjectID) (models
 }
 
 func (r *UserRepository) UpdateFields(ctx context.Context, id bson.ObjectID, fields bson.M) error {
+	if len(fields) == 0 {
+		return nil
+	}
 	if err := validateUserUpdateFields(fields); err != nil {
 		return err
 	}
@@ -95,8 +99,14 @@ func (r *UserRepository) UpdateFields(ctx context.Context, id bson.ObjectID, fie
 	defer cancel()
 
 	update := bson.M{"$set": fields}
-	_, err := r.coll.UpdateByID(ctx, id, update)
-	return ctxutil.NormalizeError(err, "mgo.user.update_fields")
+	result, err := r.coll.UpdateByID(ctx, id, update)
+	if err != nil {
+		return userError(err, "mgo.user.update_fields")
+	}
+	if result.MatchedCount == 0 {
+		return core.ErrUserNotFound
+	}
+	return nil
 }
 
 func validateUserUpdateFields(fields bson.M) error {
